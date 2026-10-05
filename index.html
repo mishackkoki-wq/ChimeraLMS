@@ -17,17 +17,22 @@
     <header class="home-nav">
       <div class="home-nav-inner">
         <div class="home-logo">
-          <img class="brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
-          <span class="brand-portal-label">STUDENT PORTAL</span>
+          <div class="logo-mark">C</div>
+          <div class="logo-text">
+            <strong>CHIMERA</strong>
+            <span>LMS</span>
+          </div>
         </div>
         <nav class="home-menu">
-          <a href="#home" class="nav-link active">Home</a>
-          <a href="#about" class="nav-link">About us</a>
-          <a href="#skills" class="nav-link">Enroll Programme</a>
-          <a href="#contact" class="nav-link">Contact us</a>
+          <a href="#" class="nav-link">About</a>
+          <a href="#" class="nav-link">Courses</a>
+          <a href="#" class="nav-link">Faculties</a>
+          <a href="#" class="nav-link">Admissions</a>
+          <a href="#" class="nav-link">Contact</a>
         </nav>
         <div class="home-nav-actions">
           <a href="#" class="nav-link" id="nav-login">Sign In</a>
+          <a href="#" class="btn-apply" id="nav-register">Apply Now</a>
         </div>
       </div>
     </header>
@@ -35,92 +40,19 @@
     <!-- Hero Section -->
     <section class="hero" id="home">
       <div class="hero-left">
-        <div class="mission-feature">
-          <span class="mission-kicker">CHIMERA LEARNING · OUR MISSION</span>
-          <h1><span class="mission-debug">Debug Life<span class="mission-cursor">_</span></span><br><em>Deploy Knowledge.</em></h1>
-          <p>We turn technology into a doorway to opportunity, giving every learner the confidence and practical digital skills to shape what comes next.</p>
-          <span class="mission-doodle" aria-hidden="true">{ bugs.fixed++; }</span>
+        <p class="hero-eyebrow">Secure Learning Management System</p>
+        <h1>Chimera LMS is<br><span>Smarter Learning</span></h1>
+        <p class="hero-desc">
+          Empowering students, lecturers and administrators with a modern, 
+          secure platform for courses, assessments and progress tracking.
+        </p>
+        <div class="hero-buttons">
+          <a href="#" class="btn-apply btn-lg" id="hero-register">Get Started</a>
+          <a href="#" class="btn-outline" id="hero-login">Sign In</a>
         </div>
       </div>
       <div class="hero-right">
-        <img src="technology-classroom.jpg" alt="A connected classroom using digital tools to explore technology" class="hero-img" />
-        <div class="image-slogan" aria-label="Debug Life, Deploy Knowledge">
-          <div class="slogan-sticker-top"><span class="slogan-status-dot" aria-hidden="true"></span> CLASSROOM MODE: ON</div>
-          <div class="slogan-sticker-main">
-            <span>DEBUG LIFE</span>
-            <strong>DEPLOY<br>KNOWLEDGE<span class="slogan-cursor">_</span></strong>
-          </div>
-          <span class="slogan-code-note">{ curiosity++; }</span>
-        </div>
-        <div class="hero-overlay"></div>
-      </div>
-    </section>
-
-    <!-- Services Section -->
-    <section class="services-section" id="services">
-      <div class="services-header">
-        <div class="section-label">01 — Services</div>
-        <h2>Tailored Purpose Driven<br><span class="accent">Solutions.</span></h2>
-        <p class="services-intro">
-          We offer transformative ICT solutions tailored to drive your success. Let's elevate your business by harnessing cutting edge technology solutions and achieve extraordinary results together.
-        </p>
-      </div>
-      <div class="services-grid">
-        <article class="service-card">
-          <div class="service-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9B1B1E" stroke-width="1.5">
-              <circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-            </svg>
-          </div>
-          <h3>BUSINESS PROCESS<br>MODERNISATION<br>&amp; DIGITALISATION</h3>
-          <p>We assist in developing an ICT capability that is aligned to and supports business objectives by modernising and digitalising processes.</p>
-          <a href="#" class="learn-more">Learn more <span>→</span></a>
-        </article>
-        <article class="service-card">
-          <div class="service-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9B1B1E" stroke-width="1.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
-            </svg>
-          </div>
-          <h3>CYBER SECURITY &amp;<br>RISK MANAGEMENT</h3>
-          <p>We help clients secure their ICT assets, ensuring resilience, continuity, and confidence in systems that support critical business operations.</p>
-          <a href="#" class="learn-more">Learn more <span>→</span></a>
-        </article>
-        <article class="service-card" id="skills">
-          <div class="service-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9B1B1E" stroke-width="1.5">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/>
-            </svg>
-          </div>
-          <h3>ICT SKILLS<br>DEVELOPMENT<br>PROGRAMMES</h3>
-          <p>We empower individuals by developing digital skills that are in demand, helping them thrive and stay relevant in today's digital world.</p>
-          <a href="#" class="learn-more" id="skills-cta">Learn more <span>→</span></a>
-        </article>
-        <article class="service-card">
-          <div class="service-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9B1B1E" stroke-width="1.5">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-          </div>
-          <h3>DATA<br>SERVICES</h3>
-          <p>We transform data into a valuable strategic asset, enabling smarter decisions, improved performance, and sustained competitive advantage for our clients.</p>
-          <a href="#" class="learn-more">Learn more <span>→</span></a>
-        </article>
-      </div>
-    </section>
-
-    <!-- About Us Section -->
-    <section class="about-section" id="about">
-      <div class="about-visual">
-        <div class="wireframe-sphere" aria-hidden="true"></div>
-      </div>
-      <div class="about-content">
-        <div class="section-label">02 — About Us</div>
-        <h2>Founded in 2013, Chimera Holdings has grown into a trusted leader in <span class="accent">ICT services and skills development.</span></h2>
-        <p>
-          With a hands-on, client-centric approach, we conceptualise and deliver innovative, fit-for-purpose solutions that drive growth, sustainability, and digital transformation.
-        </p>
-        <a href="#" class="btn-apply" id="about-learn">Learn more <span>→</span></a>
+        <img src="bg.webp" alt="Chimera LMS" class="hero-img" />
       </div>
     </section>
 
@@ -181,44 +113,26 @@
       </div>
     </section>
 
+    <!-- Careers teaser -->
+    <section class="careers-teaser" id="careers">
+      <div class="careers-inner">
+        <h2>Join a team that builds the future</h2>
+        <p>Explore career opportunities and contribute to digital transformation across the EMEA region.</p>
+        <a href="#contact" class="btn-outline-red">View Careers</a>
+      </div>
+    </section>
+
     <!-- Footer -->
     <footer class="home-footer" id="contact">
       <div class="home-footer-inner">
-        <div class="footer-brand">
-          <div class="home-logo">
-            <img class="brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
-            <span class="brand-portal-label">STUDENT PORTAL</span>
-          </div>
-          <p class="tagline">Digitalise<br>Secure<br>Innovate</p>
-          <div class="social-links">
-            <a href="#" aria-label="Facebook">f</a>
-            <a href="#" aria-label="LinkedIn">in</a>
-            <a href="#" aria-label="Instagram">ig</a>
+        <div class="home-logo">
+          <div class="logo-mark small">C</div>
+          <div class="logo-text">
+            <strong>CHIMERA</strong>
+            <span>LMS</span>
           </div>
         </div>
-        <div class="footer-col">
-          <h4>Contact</h4>
-          <p><strong>Address Head Office</strong><br>Block C, 2nd Floor, 49 New Rd,<br>Midrand, 1683</p>
-          <p><strong>Email</strong><br>info@chimeraholdings.co.za</p>
-          <p><strong>Office hours</strong><br>Mon – Fri 8am – 5pm</p>
-        </div>
-        <div class="footer-col">
-          <h4>Services</h4>
-          <a href="#services">Business Process Modernization &amp; Digitalisation</a>
-          <a href="#services">Cybersecurity &amp; Risk Management</a>
-          <a href="#skills">Skills Development Services</a>
-          <a href="#services">Data Services</a>
-        </div>
-        <div class="footer-col">
-          <h4>Pages</h4>
-          <a href="#home">Home</a>
-          <a href="#about">About us</a>
-          <a href="#skills">Enroll Programme</a>
-          <a href="#contact">Contact us</a>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <p>© 2025 Chimera. All Rights Reserved</p>
+        <p>© 2026 Chimera LMS. All rights reserved.</p>
       </div>
     </footer>
   </div>

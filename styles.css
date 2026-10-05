@@ -854,7 +854,11 @@ body.light .register-theme .login-brand h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+<<<<<<< HEAD
   gap: 0.08rem;
+=======
+  gap: 0.6rem;
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
   flex-shrink: 0;
 }
 
@@ -869,6 +873,7 @@ body.light .register-theme .login-brand h1 {
 
 .logo-mark svg {
   display: block;
+<<<<<<< HEAD
 }
 
 .brand-logo {
@@ -888,6 +893,8 @@ body.light .register-theme .login-brand h1 {
   letter-spacing: 0.2em;
   line-height: 1;
   white-space: nowrap;
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
 
 .logo-text {
@@ -1034,6 +1041,7 @@ body.light .register-theme .login-brand h1 {
   justify-content: center;
   max-width: 640px;
   margin-left: auto;
+<<<<<<< HEAD
 }
 
 .mission-feature {
@@ -1103,6 +1111,8 @@ body.light .register-theme .login-brand h1 {
   font-size: 0.82rem;
   font-weight: 700;
   transform: rotate(-2deg);
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
 
 .hero-left h1 {
@@ -1116,6 +1126,7 @@ body.light .register-theme .login-brand h1 {
 
 .hero-left h1 .accent {
   color: var(--chimera-red);
+<<<<<<< HEAD
 }
 
 .hero-left h1.hero-slogan {
@@ -1133,6 +1144,8 @@ body.light .register-theme .login-brand h1 {
 
 @keyframes slogan-blink {
   to { visibility: hidden; }
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
 
 .hero-desc {
@@ -1141,6 +1154,7 @@ body.light .register-theme .login-brand h1 {
   color: #4b5563;
   max-width: 440px;
   margin-bottom: 2.25rem;
+<<<<<<< HEAD
 }
 
 .technology-mission {
@@ -1165,6 +1179,8 @@ body.light .register-theme .login-brand h1 {
   color: #374151;
   font-size: 0.88rem;
   line-height: 1.55;
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
 
 .hero-buttons {
@@ -1192,6 +1208,7 @@ body.light .register-theme .login-brand h1 {
   inset: 0;
   background: linear-gradient(90deg, rgba(255,255,255,0.08) 0%, transparent 30%);
   pointer-events: none;
+<<<<<<< HEAD
   z-index: 1;
 }
 
@@ -1272,6 +1289,8 @@ body.light .register-theme .login-brand h1 {
   0%, 88%, 100% { transform: rotate(-3deg) translateY(0); }
   92% { transform: rotate(-1deg) translateY(-3px); }
   96% { transform: rotate(-4deg) translateY(0); }
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
 
 /* Services */
@@ -1753,6 +1772,7 @@ body.light .register-theme .login-brand h1 {
   .hero-left h1 {
     font-size: 2rem;
   }
+<<<<<<< HEAD
   .hero-left h1.hero-slogan {
     font-size: clamp(2rem, 9vw, 2.6rem);
   }
@@ -1766,4 +1786,7 @@ body.light .register-theme .login-brand h1 {
     font-size: 0.92rem;
     gap: 0.35rem;
   }
+=======
+>>>>>>> 1d640dafe16dc2a6e2a0326b54ae078e93e17d9c
 }
+
