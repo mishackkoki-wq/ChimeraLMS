@@ -43,14 +43,49 @@ function showScreen(name) {
   else if (name === "app") appScreen.classList.add("active");
 }
 
-// Homepage buttons
-["nav-login", "hero-login"].forEach(id => {
+// Homepage buttons → Login / Register
+["nav-login"].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("click", (e) => { e.preventDefault(); showScreen("login"); });
 });
-["nav-register", "hero-register"].forEach(id => {
+["nav-register", "hero-register", "skills-cta"].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener("click", (e) => { e.preventDefault(); showScreen("register"); });
+});
+
+// FAQ accordion
+document.querySelectorAll(".faq-question").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const item = btn.closest(".faq-item");
+    const isOpen = item.classList.contains("open");
+    document.querySelectorAll(".faq-item").forEach(i => {
+      i.classList.remove("open");
+      i.querySelector(".faq-question").setAttribute("aria-expanded", "false");
+      i.querySelector(".faq-icon").textContent = "+";
+    });
+    if (!isOpen) {
+      item.classList.add("open");
+      btn.setAttribute("aria-expanded", "true");
+      item.querySelector(".faq-icon").textContent = "−";
+    }
+  });
+});
+
+// Smooth scroll for in-page anchors on homepage
+document.querySelectorAll('#home-screen a[href^="#"]').forEach(a => {
+  a.addEventListener("click", (e) => {
+    const targetId = a.getAttribute("href").slice(1);
+    if (!targetId) return;
+    const target = document.getElementById(targetId);
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Update active nav pill
+      document.querySelectorAll(".home-menu .nav-link").forEach(l => l.classList.remove("active"));
+      const navLink = document.querySelector(`.home-menu .nav-link[href="#${targetId}"]`);
+      if (navLink) navLink.classList.add("active");
+    }
+  });
 });
 
 // Screen switching (login <-> register)
