@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chimera LMS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ========== HOMEPAGE ========== -->
+  <div id="home-screen" class="screen active">
+    <!-- Top Navigation -->
+    <header class="home-nav">
+      <div class="home-nav-inner">
+        <div class="home-logo">
+          <div class="logo-mark">C</div>
+          <div class="logo-text">
+            <strong>CHIMERA</strong>
+            <span>LMS</span>
+          </div>
+        </div>
+        <nav class="home-menu">
+          <a href="#" class="nav-link">About</a>
+          <a href="#" class="nav-link">Courses</a>
+          <a href="#" class="nav-link">Faculties</a>
+          <a href="#" class="nav-link">Admissions</a>
+          <a href="#" class="nav-link">Contact</a>
+        </nav>
+        <div class="home-nav-actions">
+          <a href="#" class="nav-link" id="nav-login">Sign In</a>
+          <a href="#" class="btn-apply" id="nav-register">Apply Now</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-left">
+        <p class="hero-eyebrow">Secure Learning Management System</p>
+        <h1>Chimera LMS is<br><span>Smarter Learning</span></h1>
+        <p class="hero-desc">
+          Empowering students, lecturers and administrators with a modern, 
+          secure platform for courses, assessments and progress tracking.
+        </p>
+        <div class="hero-buttons">
+          <a href="#" class="btn-apply btn-lg" id="hero-register">Get Started</a>
+          <a href="#" class="btn-outline" id="hero-login">Sign In</a>
+        </div>
+      </div>
+      <div class="hero-right">
+        <img src="bg.webp" alt="Chimera LMS" class="hero-img" />
+      </div>
+    </section>
+
+    <!-- Features strip -->
+    <section class="features-strip">
+      <div class="feature-item">
+        <div class="feature-icon">📚</div>
+        <div>
+          <strong>Courses & Modules</strong>
+          <p>Easy access to learning materials</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📝</div>
+        <div>
+          <strong>Assignments</strong>
+          <p>Submit and track your work</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div>
+          <strong>Progress Tracking</strong>
+          <p>See your grades and growth</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <div>
+          <strong>Secure Access</strong>
+          <p>Role-based permissions</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="home-footer">
+      <div class="home-footer-inner">
+        <div class="home-logo">
+          <div class="logo-mark small">C</div>
+          <div class="logo-text">
+            <strong>CHIMERA</strong>
+            <span>LMS</span>
+          </div>
+        </div>
+        <p>© 2026 Chimera LMS. All rights reserved.</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ========== LOGIN SCREEN ========== -->
+  <div id="login-screen" class="screen">
+    <div class="login-container">
+      <div class="login-brand">
+        <h1>Learn @ Chimera</h1>
+      </div>
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@institution.edu" required />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" required />
+        </div>
+        <div class="form-group">
+          <label for="role">Login as</label>
+          <select id="role" required>
+            <option value="learner">Learner / Student</option>
+            <option value="lecturer">Lecturer / Instructor</option>
+            <option value="admin">Administrator</option>
+            <option value="guest">Guest (Limited)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Sign In</button>
+        <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Create one</a></p>
+        <p class="demo-hint">Demo: Use any email/password. Role selection controls the dashboard.</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== REGISTER SCREEN ========== -->
+  <div id="register-screen" class="screen">
+    <div class="login-container register-theme">
+      <div class="login-brand">
+        <h1>Create Account</h1>
+        <p>Learn @ Chimera</p>
+      </div>
+      <form id="register-form" class="login-form">
+        <div class="form-group">
+          <label for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" placeholder="Alex Johnson" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Email</label>
+          <input type="email" id="reg-email" placeholder="you@institution.edu" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="••••••••" required minlength="6" />
+        </div>
+        <div class="form-group">
+          <label for="reg-confirm">Confirm Password</label>
+          <input type="password" id="reg-confirm" placeholder="••••••••" required minlength="6" />
+        </div>
+        <div class="form-group">
+          <label for="reg-role">I am a</label>
+          <select id="reg-role" required>
+            <option value="learner">Learner / Student</option>
+            <option value="lecturer">Lecturer / Instructor</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-red">Create Account</button>
+        <p class="auth-switch">Already have an account? <a href="#" id="show-login">Sign in</a></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== MAIN APP ========== -->
+  <div id="app-screen" class="screen">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo small">C</div>
+        <span>Chimera</span>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav"></nav>
+      <div class="sidebar-footer">
+        <div class="user-info" id="user-info">
+          <div class="avatar" id="user-avatar">U</div>
+          <div>
+            <strong id="user-name">User</strong>
+            <small id="user-role">Role</small>
+          </div>
+        </div>
+        <button class="btn btn-ghost" id="logout-btn">Sign Out</button>
+      </div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <h2 id="page-title">Dashboard</h2>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+            <span id="theme-icon">☀️</span>
+          </button>
+          <span class="badge" id="role-badge">Learner</span>
+        </div>
+      </header>
+      <div class="content" id="content-area"></div>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Modal</h3>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
