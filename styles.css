@@ -1021,14 +1021,14 @@ body.light .register-theme .login-brand h1 {
 /* Hero */
 .hero {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 560px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr);
+  min-height: clamp(560px, calc(100svh - 110px), 760px);
   width: 100%;
   background: #fff;
 }
 
 .hero-left {
-  padding: 4rem 3.5rem 4rem 4.5rem;
+  padding: 3.5rem clamp(2rem, 4vw, 4.5rem) 3.5rem clamp(2rem, 6vw, 7rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1041,6 +1041,25 @@ body.light .register-theme .login-brand h1 {
   max-width: 540px;
   padding: 1.25rem 0 1.6rem;
 }
+
+/* Hero headline inspired by the clean, geometric reference typography. */
+.mission-feature h1.hero-statement {
+  max-width: 850px;
+  margin: 0;
+  color: #080808;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: clamp(2.45rem, 4vw, 5.6rem);
+  font-weight: 400;
+  letter-spacing: -0.065em;
+  line-height: .99;
+}
+.mission-feature h1.hero-statement span { color: var(--chimera-red); }
+#mission { max-width: 850px; }
+.hero-left { max-width: none; }
+.hero-description { max-width: 510px; margin: 1.75rem 0 1.6rem; color: #53616e; font-size: clamp(1rem, 1.2vw, 1.15rem); line-height: 1.75; }
+.hero-action { display: inline-flex; align-items: center; gap: 1.5rem; padding: .8rem 1.1rem .8rem 1.35rem; border-radius: 999px; background: var(--chimera-red); color: #fff; font-size: .95rem; font-weight: 600; text-decoration: none; transition: transform .2s, background .2s; }
+.hero-action:hover { background: var(--chimera-red-dark); transform: translateY(-2px); }
+.hero-action span { display: grid; place-items: center; width: 2rem; height: 2rem; margin: -.35rem; border-radius: 50%; background: rgba(255,255,255,.16); font-size: 1.2rem; }
 
 .mission-kicker {
   display: inline-block;
@@ -1114,6 +1133,26 @@ body.light .register-theme .login-brand h1 {
   overflow: hidden;
   background: #0B1C2C;
 }
+
+/* Self-contained animated LMS illustration; the SVG scales without cropping. */
+.hero-scene { min-height: inherit; display: grid; place-items: center; background: #edf3f4; }
+.learner-illustration { display: block; width: 100%; height: 100%; min-height: inherit; object-fit: contain; }
+.float-card { animation: card-float 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.learner-body { animation: learner-breathe 4s ease-in-out infinite; transform-box: view-box; transform-origin: 350px 350px; }
+.typing-arm { animation: typing-motion 1.3s ease-in-out infinite; transform-box: view-box; transform-origin: 389px 365px; }
+.keyboard-hand { animation: typing-motion 1.3s ease-in-out infinite; transform-box: view-box; transform-origin: 646px 438px; }
+.click-cursor { animation: cursor-click 4.2s ease-in-out infinite; }
+.click-cursor circle { transform-box: fill-box; transform-origin: center; animation: click-pulse 4.2s ease-out infinite; }
+.lesson-progress { animation: lesson-grow 5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: left; }
+.keyboard-keys { animation: key-tap 1.3s steps(2, end) infinite; }
+@keyframes card-float { 50% { transform: translateY(-9px); } }
+@keyframes learner-breathe { 50% { transform: translateY(-3px); } }
+@keyframes typing-motion { 50% { transform: rotate(2deg) translateY(3px); } }
+@keyframes cursor-click { 0%, 15% { transform: translate(515px, 420px); opacity: 0; } 27% { transform: translate(543px, 433px); opacity: 1; } 34%, 48% { transform: translate(543px, 433px) scale(.92); opacity: 1; } 58%, 100% { transform: translate(515px, 420px); opacity: 0; } }
+@keyframes click-pulse { 0%, 27%, 48%, 100% { transform: scale(.45); opacity: 0; } 34% { transform: scale(1); opacity: .8; } }
+@keyframes lesson-grow { to { transform: scaleX(1.18); } }
+@keyframes key-tap { 50% { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { .float-card, .learner-body, .typing-arm, .keyboard-hand, .click-cursor, .click-cursor circle, .lesson-progress, .keyboard-keys { animation: none; } }
 
 .hero-img {
   width: 100%;
@@ -1644,7 +1683,8 @@ body.light .register-theme .login-brand h1 {
     margin: 0;
   }
   .hero-right {
-    min-height: 320px;
+    min-height: 0;
+    height: auto;
   }
   .services-header {
     grid-template-columns: 1fr;
@@ -1675,6 +1715,12 @@ body.light .register-theme .login-brand h1 {
   }
 }
 
+@media (max-width: 900px) {
+  .mission-feature h1.hero-statement { font-size: clamp(2.6rem, 8vw, 4.8rem); }
+  .hero-scene { min-height: 0; }
+  .learner-illustration { height: auto; min-height: 0; }
+}
+
 @media (max-width: 560px) {
   .services-grid {
     grid-template-columns: 1fr;
@@ -1699,5 +1745,97 @@ body.light .register-theme .login-brand h1 {
     font-size: 0.92rem;
     gap: 0.35rem;
   }
+}
+
+/* Reference inspired public landing sections */
+.reference-about { min-height: 590px; }
+.reference-about .about-visual { background: #fff; min-height: 590px; }
+.reference-about .wireframe-sphere {
+  width: min(580px, 90%);
+  background:
+    radial-gradient(ellipse at 32% 34%, transparent 0 22%, rgba(155,27,30,.55) 22.2% 22.5%, transparent 22.8% 34%, rgba(155,27,30,.44) 34.2% 34.5%, transparent 34.8%),
+    repeating-radial-gradient(ellipse at 48% 48%, rgba(155,27,30,.7) 0 1px, transparent 1.5px 7px);
+  clip-path: polygon(50% 0, 69% 8%, 82% 22%, 98% 39%, 91% 52%, 97% 67%, 82% 87%, 62% 100%, 43% 94%, 26% 98%, 10% 82%, 0 61%, 5% 40%, 19% 18%, 34% 6%);
+  opacity: .72;
+}
+.reference-section-label { display:flex; align-items:center; gap:.8rem; color:inherit; font-size:1rem; font-weight:500; margin-bottom:2.8rem; }
+.reference-section-label i { display:block; width:60px; height:2px; background:var(--chimera-red); }
+.reference-section-label h2 { font-size:inherit; font-weight:500; margin:0; }
+.reference-about .about-content { padding:4rem clamp(2rem, 6vw, 7rem) 4rem clamp(1.5rem, 4vw, 4rem); }
+.reference-about .about-content h2 { font-size:clamp(1.8rem, 2.8vw, 2.55rem); letter-spacing:.01em; line-height:1.28; }
+.reference-about .about-content p { margin-bottom:3rem; }
+.reference-learn-more { display:inline-flex; align-items:center; gap:2rem; align-self:flex-start; padding:.8rem 1.2rem; border-radius:999px; background:var(--chimera-red); color:#fff; text-decoration:none; font-weight:600; }
+.reference-learn-more span { display:grid; place-items:center; width:2rem; height:2rem; margin:-.35rem; border-radius:50%; background:#9B1B1E; font-size:1.25rem; }
+.certificates-section { background:#00364d; color:#fff; padding:2rem clamp(1.25rem, 2vw, 2rem) 3.5rem; }
+.certificates-inner { max-width:1600px; margin:auto; }
+.certificates-section .reference-section-label { margin-bottom:3rem; }
+.certificates-section .reference-section-label i { background:#d52334; }
+.certificate-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:clamp(1.1rem,2.3vw,2.5rem); }
+.certificate-card h3 { font-size:1.05rem; line-height:1.35; margin-bottom:1.15rem; color:#fff; }
+.certificate-card h4 { color:#8ca9bd; font-size:.88rem; line-height:1.5; margin-bottom:1.25rem; }
+.certificate-card p { color:#91abc0; font-size:.96rem; line-height:1.5; }
+.reference-footer { padding:4rem max(calc((100% - 1490px)/2), 4vw) 0; border:0; }
+.reference-footer-main { display:grid; grid-template-columns:2.5fr .8fr .8fr .6fr; gap:clamp(2rem,6vw,7rem); padding-bottom:4rem; }
+.reference-footer-brand .brand-logo { width:clamp(220px,21vw,330px); }
+.reference-tagline { color:#26313a; font-size:clamp(1.7rem,2.2vw,2.5rem); line-height:1.12; margin-top:3.5rem; }
+.reference-socials { display:flex; gap:1.7rem; margin-top:7rem; }
+.reference-socials a { color:var(--chimera-red); font-size:1rem; font-weight:700; text-decoration:none; }
+.reference-footer-column h3 { font-size:1.35rem; color:#26313a; margin-bottom:1.5rem; }
+.reference-footer-column p,.reference-footer-column>a { display:block; color:#111; font-size:.95rem; line-height:1.5; margin-bottom:1.15rem; text-decoration:none; }
+.reference-footer-column p strong { display:block; color:var(--chimera-red); font-weight:500; margin-bottom:.3rem; }
+.reference-footer-column p a { color:inherit; text-decoration:none; }
+.reference-footer-column>a:hover,.reference-footer-column p a:hover { color:var(--chimera-red); }
+.reference-footer-bottom { min-height:60px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid #d9dce2; color:#7b8490; font-size:.9rem; }
+.back-to-top { display:grid; place-items:center; width:56px; height:56px; background:var(--chimera-red); color:#fff; font-size:1.8rem; text-decoration:none; }
+@media(max-width:900px) {
+  .reference-about .about-visual { min-height:350px; }
+  .reference-about .about-content { padding:2.5rem 1.5rem 3rem; }
+  .certificate-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .reference-footer { padding:3rem 1.5rem 0; }
+  .reference-footer-main { grid-template-columns:1fr 1fr; }
+  .reference-socials { margin-top:2rem; }
+}
+@media(max-width:560px) {
+  .certificate-grid,.reference-footer-main { grid-template-columns:1fr; }
+  .certificates-section { padding:2rem 1.25rem 3rem; }
+  .reference-section-label { margin-bottom:2rem; }
+  .reference-tagline { margin-top:1.5rem; }
+}
+
+/* LMS hero: supporting copy, supplied learner artwork, and the restored classroom image. */
+.hero-lms {
+  grid-template-columns: minmax(0, .98fr) minmax(0, 1fr) minmax(0, 1fr);
+  min-height: clamp(600px, calc(100svh - 110px), 760px);
+  align-items: stretch;
+}
+.hero-lms .hero-left {
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 3rem clamp(1.4rem, 3vw, 3.5rem);
+}
+.hero-lms .mission-feature { max-width: none; }
+.hero-lms .hero-statement {
+  font-size: clamp(2.2rem, 3.2vw, 4.1rem);
+  letter-spacing: -.055em;
+  line-height: 1.05;
+}
+.hero-lms .mission-kicker { color: var(--chimera-red); }
+.hero-art-panel,.hero-classroom-panel { min-width: 0; min-height: 0; margin: 0; overflow: hidden; }
+.hero-art-panel { display: grid; place-items: center; background: #07121c; }
+.hero-art-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+.hero-classroom-panel { position: relative; background: #0b1c2c; }
+.hero-classroom-panel .hero-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+
+@media(max-width:1100px) {
+  .hero-lms { grid-template-columns: 1fr; min-height: 0; }
+  .hero-lms .hero-left { padding: 3rem clamp(1.5rem, 7vw, 5rem); }
+  .hero-lms .hero-statement { font-size: clamp(2.5rem, 7vw, 4.8rem); }
+  .hero-art-panel,.hero-classroom-panel { aspect-ratio: 16 / 9; }
+}
+@media(max-width:560px) {
+  .hero-lms .hero-left { padding: 2.5rem 1.4rem; }
+  .hero-art-panel,.hero-classroom-panel { aspect-ratio: 4 / 3; }
+  .hero-lms .hero-statement { font-size: clamp(2.35rem, 10vw, 3.3rem); }
 }
 

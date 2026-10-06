@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -22,7 +22,7 @@
         </div>
         <nav class="home-menu">
           <a href="#home" class="nav-link active">Home</a>
-          <a href="#mission" class="nav-link">About us</a>
+          <a href="#about" class="nav-link">About us</a>
           <a href="#" class="nav-link" id="nav-register">Enroll Programme</a>
           <a href="#contact" class="nav-link">Contact us</a>
         </nav>
@@ -33,25 +33,24 @@
     </header>
 
     <!-- Hero Section -->
-    <section class="hero" id="home">
+    <section class="hero hero-lms" id="home">
       <div class="hero-left">
         <div class="mission-feature" id="mission">
-          <span class="mission-kicker">CHIMERA LEARNING · OUR MISSION</span>
-          <h1><span class="mission-debug">Debug Life<span class="mission-cursor">_</span></span><br><em>Deploy Knowledge.</em></h1>
-          <p>We turn technology into a doorway to opportunity, giving every learner the confidence and practical digital skills to shape what comes next.</p>
-          <span class="mission-doodle" aria-hidden="true">{ bugs.fixed++; }</span>
+          <span class="mission-kicker">CHIMERA LEARNING · STUDENT PORTAL</span>
+          <h1 class="hero-statement">Your learning,<br><span>all in one place.</span></h1>
+          <p class="hero-description">Access lessons, follow your progress, and build practical digital skills through Chimera’s Learning Management System.</p>
+          <a class="hero-action" href="#" id="hero-register">Start learning <span aria-hidden="true">↗</span></a>
         </div>
       </div>
-      <div class="hero-right">
-        <img src="technology-classroom.jpg" alt="A connected classroom exploring technology" class="hero-img" />
-        <div class="image-slogan" aria-label="Debug Life, Deploy Knowledge">
-          <div class="slogan-sticker-top"><span class="slogan-status-dot" aria-hidden="true"></span> CLASSROOM MODE: ON</div>
-          <div class="slogan-sticker-main"><span>DEBUG LIFE</span><strong>DEPLOY<br>KNOWLEDGE<span class="slogan-cursor">_</span></strong></div>
-          <span class="slogan-code-note">{ curiosity++; }</span>
-        </div>
-        <div class="hero-overlay"></div>
-      </div>
+      <figure class="hero-art-panel">
+        <img src="lms-learner-artwork.jpeg" alt="Learner debugging code and deploying knowledge at a laptop" class="hero-art-image" />
+      </figure>
+      <figure class="hero-right hero-classroom-panel">
+        <img src="technology-classroom.jpg" alt="Technology classroom with connected digital learning tools" class="hero-img" />
+      </figure>
     </section>
+
+    <div id="landing-sections"></div>
 
     <!-- FAQs Section -->
     <section class="faq-section" id="faq">
@@ -111,14 +110,18 @@
     </section>
 
     <!-- Footer -->
-    <footer class="home-footer" id="contact">
-      <div class="home-footer-inner">
-        <div class="home-logo">
+    <footer class="home-footer reference-footer" id="contact">
+      <div class="reference-footer-main">
+        <div class="reference-footer-brand">
           <img class="brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
-          <span class="brand-portal-label">STUDENT PORTAL</span>
+          <p class="reference-tagline">Digitalise<br>Secure<br>Innovate</p>
+          <div class="reference-socials" aria-label="Social media"><a href="https://www.facebook.com/" aria-label="Facebook">f</a><a href="https://www.linkedin.com/" aria-label="LinkedIn">in</a><a href="https://www.instagram.com/" aria-label="Instagram">◎</a></div>
         </div>
-        <p>© 2026 Chimera LMS. All rights reserved.</p>
+        <div class="reference-footer-column"><h3>Contact</h3><p><strong>Address Head Office</strong>Block C, 2nd Floor, 49 New Rd,<br>Midrand, 1683</p><p><strong>Email</strong><a href="mailto:info@chimeraholdings.co.za">info@chimeraholdings.co.za</a></p><p><strong>Office hours</strong>Mon - Fri 8am - 5pm</p></div>
+        <div class="reference-footer-column"><h3>Services</h3><a href="#faq">Business Process Modernization &amp; Digitalization</a><a href="#faq">Cybersecurity &amp; Risk Management</a><a href="#certificates">Skills Development Services</a><a href="#faq">Data Services</a></div>
+        <div class="reference-footer-column"><h3>Pages</h3><a href="#home">Home</a><a href="#about">About us</a><a href="#faq">Services</a><a href="#certificates">Skills Development Programmes</a><a href="#contact">Careers</a><a href="#contact">Contact us</a></div>
       </div>
+      <div class="reference-footer-bottom"><span>© 2025 Chimera. All Rights Reserved</span><a class="back-to-top" href="#home" aria-label="Back to top">↑</a></div>
     </footer>
   </div>
 
@@ -239,6 +242,7 @@
   <!-- TOAST -->
   <div id="toast" class="toast"></div>
 
+  <script src="landing-sections.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
