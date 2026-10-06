@@ -18,7 +18,6 @@
       <div class="home-nav-inner">
         <div class="home-logo">
           <img class="brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
-          <span class="brand-portal-label">STUDENT PORTAL</span>
         </div>
         <nav class="home-menu">
           <a href="#home" class="nav-link active">Home</a>
@@ -129,6 +128,7 @@
   <div id="login-screen" class="screen">
     <div class="login-container">
       <div class="login-brand">
+        <img class="auth-brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
         <h1>Learn @ Chimera</h1>
       </div>
       <form id="login-form" class="login-form">
@@ -157,49 +157,69 @@
   </div>
 
   <!-- ========== REGISTER SCREEN ========== -->
-  <div id="register-screen" class="screen">
-    <div class="login-container register-theme">
-      <div class="login-brand">
-        <h1>Create Account</h1>
-        <p>Learn @ Chimera</p>
+  <div id="register-screen" class="screen registration-screen">
+    <main class="registration-shell">
+      <header class="registration-header">
+        <a href="#home" class="registration-brand" id="registration-home"><img src="chimera-holdings-logo.png" alt="Chimera Holdings" /></a>
+        <p>Already have an account? <a href="#" id="show-login">Sign in</a></p>
+      </header>
+      <div class="registration-intro">
+        <span class="registration-eyebrow">CHIMERA LEARNING · STUDENT PORTAL</span>
+        <h1>Register for a programme</h1>
+        <p>Complete your learner details and choose the certificate programme you want to study.</p>
       </div>
-      <form id="register-form" class="login-form">
-        <div class="form-group">
-          <label for="reg-name">Full Name</label>
-          <input type="text" id="reg-name" placeholder="Alex Johnson" required />
-        </div>
-        <div class="form-group">
-          <label for="reg-email">Email</label>
-          <input type="email" id="reg-email" placeholder="you@institution.edu" required />
-        </div>
-        <div class="form-group">
-          <label for="reg-password">Password</label>
-          <input type="password" id="reg-password" placeholder="••••••••" required minlength="6" />
-        </div>
-        <div class="form-group">
-          <label for="reg-confirm">Confirm Password</label>
-          <input type="password" id="reg-confirm" placeholder="••••••••" required minlength="6" />
-        </div>
-        <div class="form-group">
-          <label for="reg-role">I am a</label>
-          <select id="reg-role" required>
-            <option value="learner">Learner / Student</option>
-            <option value="facilitator">Facilitator</option>
-            <option value="admin">Administrator</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-red">Create Account</button>
-        <p class="auth-switch">Already have an account? <a href="#" id="show-login">Sign in</a></p>
+      <form id="register-form" class="registration-form">
+        <section class="registration-section" aria-labelledby="course-heading">
+          <div class="registration-section-heading"><span>01</span><div><h2 id="course-heading">Choose your course</h2><p>Select the occupational certificate you’re applying for.</p></div></div>
+          <div class="registration-grid">
+            <div class="registration-field full-width"><label for="reg-course">Courses <span aria-hidden="true">*</span></label><select id="reg-course" name="course" required><option value="">Choose a certificate programme</option><option>Data Science Practitioner</option><option>AI Software Developer</option><option>Software Developer</option><option>Cybersecurity Analyst</option><option>Project Manager</option></select></div>
+          </div>
+        </section>
+
+        <section class="registration-section" aria-labelledby="personal-heading">
+          <div class="registration-section-heading"><span>02</span><div><h2 id="personal-heading">Your personal details</h2><p>Enter your details as they appear on your identity document.</p></div></div>
+          <div class="registration-grid">
+            <div class="registration-field"><label for="reg-email">Email address <span aria-hidden="true">*</span></label><input type="email" id="reg-email" name="email" autocomplete="email" required /></div>
+            <div class="registration-field"><label for="reg-email-confirm">Enter your email again <span aria-hidden="true">*</span></label><input type="email" id="reg-email-confirm" name="emailConfirm" autocomplete="email" required /></div>
+            <div class="registration-field"><label for="reg-id-number">Identity number</label><input type="text" id="reg-id-number" name="identityNumber" inputmode="numeric" autocomplete="off" /></div>
+            <div class="registration-field"><label for="reg-passport">Passport number <span class="field-note">(international students)</span></label><input type="text" id="reg-passport" name="passportNumber" autocomplete="off" /></div>
+            <p class="field-help full-width">Provide an identity number or a passport number.</p>
+            <div class="registration-field"><label for="reg-first-name">First name <span aria-hidden="true">*</span></label><input type="text" id="reg-first-name" name="firstName" autocomplete="given-name" required /></div>
+            <div class="registration-field"><label for="reg-surname">Surname <span aria-hidden="true">*</span></label><input type="text" id="reg-surname" name="surname" autocomplete="family-name" required /></div>
+            <div class="registration-field"><label for="reg-dob">Date of birth <span aria-hidden="true">*</span></label><input type="date" id="reg-dob" name="dateOfBirth" autocomplete="bday" required /></div>
+            <fieldset class="registration-field gender-field"><legend>Gender <span aria-hidden="true">*</span></legend><div class="gender-options"><label><input type="radio" name="gender" value="female" required /><span>Female</span></label><label><input type="radio" name="gender" value="male" /><span>Male</span></label><label><input type="radio" name="gender" value="prefer-not-to-say" /><span>Prefer not to say</span></label></div></fieldset>
+            <div class="registration-field"><label for="reg-phone">Contact phone number <span aria-hidden="true">*</span></label><input type="tel" id="reg-phone" name="phone" autocomplete="tel" required /></div>
+            <div class="registration-field"><label for="reg-school">Last school attended <span aria-hidden="true">*</span></label><input type="text" id="reg-school" name="lastSchool" required /></div>
+          </div>
+        </section>
+
+        <section class="registration-section" aria-labelledby="password-heading">
+          <div class="registration-section-heading"><span>03</span><div><h2 id="password-heading">Set up your password</h2><p>Use at least eight characters, including a capital letter and a number.</p></div></div>
+          <div class="registration-grid">
+            <div class="registration-field"><label for="reg-password">Password <span aria-hidden="true">*</span></label><input type="password" id="reg-password" name="password" autocomplete="new-password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9]).{8,}" required /></div>
+            <div class="registration-field"><label for="reg-confirm">Enter your password again <span aria-hidden="true">*</span></label><input type="password" id="reg-confirm" name="passwordConfirm" autocomplete="new-password" minlength="8" required /></div>
+            <div class="registration-field"><label for="reg-recovery-question">Password retrieval question <span aria-hidden="true">*</span></label><select id="reg-recovery-question" name="recoveryQuestion" required><option value="">Choose a question</option><option>What was the name of your first school?</option><option>What is the name of the town where you were born?</option><option>What was the first concert you attended?</option><option>What is the name of your favourite teacher?</option></select></div>
+            <div class="registration-field"><label for="reg-recovery-answer">Your answer <span aria-hidden="true">*</span></label><input type="text" id="reg-recovery-answer" name="recoveryAnswer" autocomplete="off" required /></div>
+          </div>
+        </section>
+
+        <section class="registration-section agreement-section" aria-labelledby="agreement-heading">
+          <div class="registration-section-heading"><span>04</span><div><h2 id="agreement-heading">Your agreement</h2><p>Review how your registration details will be used.</p></div></div>
+          <div class="agreement-copy"><p>By submitting this form, I confirm that the details I have provided are accurate. I agree that Chimera Holdings may use these details to create and manage my learner account and programme application, and to contact me about my registration.</p></div>
+          <label class="agreement-check"><input type="checkbox" id="reg-agreement" name="agreement" required /><span>I have read and agree to the registration terms above.</span></label>
+        </section>
+
+        <div class="registration-submit-row"><a href="#" class="registration-back" id="registration-back">Back to home</a><button type="submit" class="registration-submit" id="register-submit">Create account &amp; apply <span aria-hidden="true">↗</span></button></div>
+        <p class="registration-privacy-note">Your registration details are used to set up your learner account and programme application.</p>
       </form>
-    </div>
+    </main>
   </div>
 
   <!-- ========== MAIN APP ========== -->
   <div id="app-screen" class="screen">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="logo small">C</div>
-        <span>Chimera</span>
+        <img class="sidebar-brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
       </div>
       <nav class="sidebar-nav" id="sidebar-nav"></nav>
       <div class="sidebar-footer">

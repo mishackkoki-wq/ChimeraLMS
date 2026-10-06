@@ -96,6 +96,7 @@ def default_data():
             {"userId": "u4", "courseId": "c1"},
             {"userId": "u4", "courseId": "c4"}
         ],
+        "program_applications": [],
         "audit_log": [
             {"id": "l1", "time": "2026-10-02 07:45", "user": "m.rivera@admin.edu", "action": "Role change: Tom Bradley → Inactive", "ip": "102.45.12.88", "status": "Success"},
             {"id": "l2", "time": "2026-10-02 06:12", "user": "s.chen@faculty.edu", "action": "Uploaded materials – WEB220", "ip": "196.22.45.11", "status": "Success"},
@@ -201,7 +202,7 @@ class LMSHandler(BaseHTTPRequestHandler):
         if path == "/api/me":
             if not user:
                 return self._error("Unauthorized", 401)
-            safe = {k: v for k, v in user.items() if k != "password"}
+            safe = {k: v for k, v in user.items() if k not in ("password", "recoveryAnswerHash")}
             return self._json_response(safe)
 
         if path == "/api/courses":
@@ -219,7 +220,11 @@ class LMSHandler(BaseHTTPRequestHandler):
             if not user or user["role"] != "admin":
                 return self._error("Forbidden", 403)
             data = load_data()
-            users = [{k: v for k, v in u.items() if k != "password"} for u in data["users"]]
+            private_fields = {
+                "password", "recoveryAnswerHash", "identityNumber", "passportNumber",
+                "dateOfBirth", "phone", "lastSchool", "recoveryQuestion"
+            }
+            users = [{k: v for k, v in u.items() if k not in private_fields} for u in data["users"]]
             return self._json_response(users)
 
         if path == "/api/audit":
@@ -304,22 +309,62 @@ class LMSHandler(BaseHTTPRequestHandler):
             save_data(data)
 
             token = create_token(user)
-            safe = {k: v for k, v in user.items() if k != "password"}
+            safe = {k: v for k, v in user.items() if k not in ("password", "recoveryAnswerHash")}
             return self._json_response({"token": token, "user": safe})
 
         # ---- REGISTER ----
         if path == "/api/auth/register":
-            name = body.get("name", "").strip()
+            first_name = body.get("firstName", "").strip()
+            surname = body.get("surname", "").strip()
+            name = (first_name + " " + surname).strip()
             email = body.get("email", "").strip().lower()
             password = body.get("password", "")
-            role = body.get("role", "learner")
+            email_confirm = body.get("emailConfirm", "").strip().lower()
+            password_confirm = body.get("passwordConfirm", "")
+            course = body.get("course", "").strip()
+            identity_number = body.get("identityNumber", "").strip()
+            passport_number = body.get("passportNumber", "").strip()
+            gender = body.get("gender", "").strip()
+            phone = body.get("phone", "").strip()
+            last_school = body.get("lastSchool", "").strip()
+            date_of_birth = body.get("dateOfBirth", "").strip()
+            recovery_question = body.get("recoveryQuestion", "").strip()
+            recovery_answer = body.get("recoveryAnswer", "").strip()
+            agreement = body.get("agreement") is True
+            programmes = (
+                "Data Science Practitioner",
+                "AI Software Developer",
+                "Software Developer",
+                "Cybersecurity Analyst",
+                "Project Manager",
+            )
 
             if not name or not email or not password:
-                return self._error("Name, email and password are required")
-            if role not in ("learner", "lecturer", "admin"):
-                return self._error("Role must be learner, lecturer or admin")
-            if len(password) < 6:
-                return self._error("Password must be at least 6 characters")
+                return self._error("First name, surname, email and password are required")
+            if email != email_confirm:
+                return self._error("Email addresses do not match")
+            if password != password_confirm:
+                return self._error("Passwords do not match")
+            if len(password) < 8 or not any(ch.isupper() for ch in password) or not any(ch.isdigit() for ch in password):
+                return self._error("Password must be at least 8 characters and include a capital letter and a number")
+            if course not in programmes:
+                return self._error("Choose a valid certificate programme")
+            if not (identity_number or passport_number):
+                return self._error("An identity number or passport number is required")
+            if not all((date_of_birth, phone, last_school, recovery_question, recovery_answer)):
+                return self._error("Complete all required learner details")
+            if gender not in ("female", "male", "prefer-not-to-say"):
+                return self._error("Choose a valid gender option")
+            if not agreement:
+                return self._error("Registration agreement is required")
+            valid_questions = (
+                "What was the name of your first school?",
+                "What is the name of the town where you were born?",
+                "What was the first concert you attended?",
+                "What is the name of your favourite teacher?",
+            )
+            if recovery_question not in valid_questions:
+                return self._error("Choose a valid password retrieval question")
 
             data = load_data()
             if any(u["email"].lower() == email for u in data["users"]):
@@ -330,17 +375,36 @@ class LMSHandler(BaseHTTPRequestHandler):
                 "email": email,
                 "password": hash_password(password),
                 "name": name,
-                "role": role,
+                "role": "learner",
                 "avatar": "".join(w[0] for w in name.split()[:2]).upper() or "U",
                 "status": "Active",
-                "lastLogin": datetime.now().strftime("%Y-%m-%d")
+                "lastLogin": datetime.now().strftime("%Y-%m-%d"),
+                "firstName": first_name,
+                "surname": surname,
+                "identityNumber": identity_number,
+                "passportNumber": passport_number,
+                "dateOfBirth": date_of_birth,
+                "gender": gender,
+                "phone": phone,
+                "lastSchool": last_school,
+                "selectedCourse": course,
+                "recoveryQuestion": recovery_question,
+                "recoveryAnswerHash": hash_password(recovery_answer.casefold()),
+                "agreementAccepted": True
             }
             data["users"].append(new_user)
-            add_audit(data, email, "New user registered as " + role)
+            data.setdefault("program_applications", []).append({
+                "id": "p" + str(uuid.uuid4())[:8],
+                "userId": new_user["id"],
+                "course": course,
+                "status": "Pending review",
+                "submittedAt": datetime.now(timezone.utc).isoformat()
+            })
+            add_audit(data, email, "Programme application submitted: " + course)
             save_data(data)
 
             token = create_token(new_user)
-            safe = {k: v for k, v in new_user.items() if k != "password"}
+            safe = {k: v for k, v in new_user.items() if k not in ("password", "recoveryAnswerHash")}
             return self._json_response({"token": token, "user": safe}, 201)
 
         # Auth required below

@@ -41,6 +41,7 @@ function showScreen(name) {
   else if (name === "login") loginScreen.classList.add("active");
   else if (name === "register") registerScreen.classList.add("active");
   else if (name === "app") appScreen.classList.add("active");
+  window.scrollTo(0, 0);
 }
 
 // Homepage buttons → Login / Register
@@ -102,29 +103,66 @@ if (showLoginLink) {
   });
 }
 
+["registration-home", "registration-back"].forEach(id => {
+  const link = document.getElementById(id);
+  if (link) link.addEventListener("click", (e) => {
+    e.preventDefault();
+    showScreen("home");
+  });
+});
+
 // Registration
 if (registerForm) {
   registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const name = document.getElementById("reg-name").value.trim();
+    const firstName = document.getElementById("reg-first-name").value.trim();
+    const surname = document.getElementById("reg-surname").value.trim();
+    const name = `${firstName} ${surname}`.trim();
     const email = document.getElementById("reg-email").value.trim();
+    const emailConfirm = document.getElementById("reg-email-confirm").value.trim();
     const password = document.getElementById("reg-password").value;
     const confirm = document.getElementById("reg-confirm").value;
-    const role = document.getElementById("reg-role").value;
+    const identityNumber = document.getElementById("reg-id-number").value.trim();
+    const passportNumber = document.getElementById("reg-passport").value.trim();
+
+    if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+      showToast("Email addresses do not match");
+      document.getElementById("reg-email-confirm").focus();
+      return;
+    }
+    if (!identityNumber && !passportNumber) {
+      showToast("Enter an identity number or passport number");
+      document.getElementById("reg-id-number").focus();
+      return;
+    }
 
     if (password !== confirm) {
       showToast("Passwords do not match");
       return;
     }
-    if (password.length < 6) {
-      showToast("Password must be at least 6 characters");
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      showToast("Use at least 8 characters, including a capital letter and a number");
       return;
     }
 
+    const submitButton = document.getElementById("register-submit");
+    submitButton.disabled = true;
+    submitButton.classList.add("is-submitting");
     try {
       const data = await api("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role })
+        body: JSON.stringify({
+          name, firstName, surname, email, emailConfirm, password, passwordConfirm: confirm,
+          course: document.getElementById("reg-course").value,
+          identityNumber, passportNumber,
+          dateOfBirth: document.getElementById("reg-dob").value,
+          gender: document.querySelector('input[name="gender"]:checked')?.value || "",
+          phone: document.getElementById("reg-phone").value.trim(),
+          lastSchool: document.getElementById("reg-school").value.trim(),
+          recoveryQuestion: document.getElementById("reg-recovery-question").value,
+          recoveryAnswer: document.getElementById("reg-recovery-answer").value.trim(),
+          agreement: document.getElementById("reg-agreement").checked
+        })
       });
 
       if (data && data.token) {
@@ -134,25 +172,17 @@ if (registerForm) {
         currentPage = "dashboard";
         if (typeof showScreen === "function") showScreen("app");
         await showApp();
-        showToast("Account created! Welcome, " + currentUser.name);
-      } else if (data && data.error) {
-        showToast(data.error);
+        showToast("Application submitted for " + data.user.selectedCourse + ". Welcome, " + currentUser.name);
       } else {
-        // Offline success simulation
-        currentUser = {
-          id: "new-" + Date.now(),
-          name: name,
-          email: email,
-          role: role,
-          avatar: name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
-        };
-        currentPage = "dashboard";
-        if (typeof showScreen === "function") showScreen("app");
-        await showApp();
-        showToast("Account created (offline)! Welcome, " + name);
+        showToast("Registration service is unavailable. Please try again shortly.");
       }
     } catch (err) {
       showToast(err.message || "Registration failed");
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.classList.remove("is-submitting");
+      }
     }
   });
 }
