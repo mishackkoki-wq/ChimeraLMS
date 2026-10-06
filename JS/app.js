@@ -397,7 +397,7 @@ function renderPage() {
     grading: "Grading Queue", reports: "Reports", users: "User Management",
     security: "Security & Audit Logs", settings: "System Settings"
   };
-  pageTitle.textContent = titles[currentPage] || "Dashboard";
+  pageTitle.textContent = currentPage === "dashboard" && currentUser.role === "learner" ? "Dashboard Home" : (titles[currentPage] || "Dashboard");
   const role = currentUser.role;
   const map = {
     dashboard: () => renderDashboard(role),
@@ -427,23 +427,151 @@ function attachPageListeners() {
   document.querySelectorAll("[data-grade]").forEach(btn => {
     btn.addEventListener("click", () => openGradeModal(btn.dataset.student, btn.dataset.assignment));
   });
+  document.querySelectorAll("[data-dashboard-page]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentPage = btn.dataset.dashboardPage;
+      renderNav();
+      renderPage();
+    });
+  });
+  bindStudentCalendar();
+}
+
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let selectedCalendarDate = localDateKey(new Date());
+
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function escapeHTML(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+
+function assignmentDueKey(assignment) {
+  return /^\d{4}-\d{2}-\d{2}/.test(assignment.due || "") ? assignment.due.slice(0, 10) : "";
+}
+
+function formattedDate(value, options = { weekday: "short", month: "short", day: "numeric" }) {
+  const date = parseDateKey(value);
+  return date ? date.toLocaleDateString(undefined, options) : "Date to be confirmed";
+}
+
+function learnerActiveCourses() {
+  return cachedCourses.filter(course => course.status !== "completed");
+}
+
+function learnerUpcomingAssignments() {
+  const todayKey = localDateKey(new Date());
+  return cachedAssignments
+    .filter(assignment => assignment.status !== "completed" && assignmentDueKey(assignment) >= todayKey && assignmentDueKey(assignment))
+    .sort((a, b) => assignmentDueKey(a).localeCompare(assignmentDueKey(b)));
+}
+
+function renderStudentCalendar() {
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const todayKey = localDateKey(new Date());
+  const monthStart = new Date(year, month, 1);
+  const leadingDays = (monthStart.getDay() + 6) % 7;
+  const monthLength = new Date(year, month + 1, 0).getDate();
+  const assignmentsByDate = cachedAssignments.reduce((grouped, assignment) => {
+    const key = assignmentDueKey(assignment);
+    if (key && assignment.status !== "completed") (grouped[key] ||= []).push(assignment);
+    return grouped;
+  }, {});
+  const cells = [];
+  for (let index = 0; index < 42; index++) {
+    const day = index - leadingDays + 1;
+    if (day < 1 || day > monthLength) {
+      cells.push('<span class="calendar-empty" aria-hidden="true"></span>');
+      continue;
+    }
+    const dateKey = localDateKey(new Date(year, month, day));
+    const hasAssignments = Boolean(assignmentsByDate[dateKey]);
+    const classes = ["calendar-day", dateKey === todayKey ? "is-today" : "", dateKey === selectedCalendarDate ? "is-selected" : "", hasAssignments ? "has-assignments" : ""].filter(Boolean).join(" ");
+    cells.push(`<button type="button" class="${classes}" data-calendar-date="${dateKey}" aria-label="${formattedDate(dateKey, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${hasAssignments ? ", assignment due" : ""}">${day}${hasAssignments ? '<i aria-hidden="true"></i>' : ""}</button>`);
+  }
+  const selectedAssignments = assignmentsByDate[selectedCalendarDate] || [];
+  return `<section class="student-calendar-card" aria-label="Student calendar">
+    <div class="student-calendar-header"><div><p class="student-panel-eyebrow">YOUR SCHEDULE</p><h2>${calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><div class="calendar-controls"><button type="button" data-calendar-shift="-1" aria-label="Previous month">‹</button><button type="button" data-calendar-shift="1" aria-label="Next month">›</button></div></div>
+    <div class="calendar-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+    <div class="calendar-days">${cells.join("")}</div>
+    <div class="calendar-selected"><h3>${selectedCalendarDate === todayKey ? "Today" : formattedDate(selectedCalendarDate, { weekday: "long", month: "long", day: "numeric" })}</h3>${selectedAssignments.length ? selectedAssignments.map(assignment => `<p><span class="calendar-event-dot"></span><span><strong>${escapeHTML(assignment.title)}</strong><small>${escapeHTML(assignment.course)} · due ${formattedDate(assignmentDueKey(assignment), { month: "short", day: "numeric" })}</small></span></p>`).join("") : '<p class="calendar-no-events">No assignments due on this date.</p>'}</div>
+  </section>`;
+}
+
+function bindStudentCalendar() {
+  const calendarRoot = document.getElementById("student-calendar");
+  if (!calendarRoot) return;
+  const draw = () => {
+    calendarRoot.innerHTML = renderStudentCalendar();
+    calendarRoot.querySelectorAll("[data-calendar-shift]").forEach(button => {
+      button.addEventListener("click", () => {
+        calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + Number(button.dataset.calendarShift), 1);
+        const selected = parseDateKey(selectedCalendarDate);
+        if (!selected || selected.getFullYear() !== calendarMonth.getFullYear() || selected.getMonth() !== calendarMonth.getMonth()) {
+          selectedCalendarDate = localDateKey(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1));
+        }
+        draw();
+      });
+    });
+    calendarRoot.querySelectorAll("[data-calendar-date]").forEach(button => {
+      button.addEventListener("click", () => {
+        selectedCalendarDate = button.dataset.calendarDate;
+        draw();
+      });
+    });
+  };
+  draw();
+}
+
+function renderLearnerDashboard() {
+  const courses = learnerActiveCourses();
+  const upcoming = learnerUpcomingAssignments();
+  const todayKey = localDateKey(new Date());
+  const overdue = cachedAssignments.filter(assignment => assignment.status !== "completed" && assignmentDueKey(assignment) && assignmentDueKey(assignment) < todayKey);
+  const progress = courses.length ? Math.round(courses.reduce((sum, course) => sum + Math.max(0, Math.min(100, Number(course.progress) || 0)), 0) / courses.length) : 0;
+  const firstName = escapeHTML((currentUser.name || "Learner").trim().split(/\s+/)[0]);
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const courseCards = courses.length ? courses.slice(0, 4).map(course => {
+    const courseProgress = Math.max(0, Math.min(100, Number(course.progress) || 0));
+    return `<article class="student-course-card"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">In progress</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseProgress}%"></span></div><small>${courseProgress}% complete</small></div></article>`;
+  }).join("") : '<div class="student-empty-state">No current courses yet. Your courses will appear here when your enrolment is active.</div>';
+  const assignmentRows = upcoming.length ? upcoming.slice(0, 4).map(assignment => {
+    const dueKey = assignmentDueKey(assignment);
+    const daysUntil = Math.round((parseDateKey(dueKey) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+    const dueLabel = daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due ${formattedDate(dueKey)}`;
+    return `<article class="student-assignment-row"><div class="assignment-date-chip"><strong>${parseDateKey(dueKey).getDate()}</strong><span>${parseDateKey(dueKey).toLocaleDateString(undefined, { month: "short" })}</span></div><div class="student-assignment-info"><h3>${escapeHTML(assignment.title)}</h3><p>${escapeHTML(assignment.course)} · ${escapeHTML(assignment.type || "Assignment")}</p><span class="assignment-due-label">${dueLabel}</span></div>${assignment.status === "pending" || assignment.status === "in-progress" ? `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit</button>` : ""}</article>`;
+  }).join("") : '<div class="student-empty-state">You’re all caught up. No upcoming assignments.</div>';
+  const notifications = [];
+  if (currentUser.selectedCourse) notifications.push(`<li class="notification-item"><span class="notification-mark application-mark">✓</span><span><strong>Programme application received</strong><small>${escapeHTML(currentUser.selectedCourse)} is awaiting review.</small></span></li>`);
+  overdue.slice(0, 2).forEach(assignment => notifications.push(`<li class="notification-item"><span class="notification-mark overdue-mark">!</span><span><strong>Assignment overdue</strong><small>${escapeHTML(assignment.title)} · ${formattedDate(assignmentDueKey(assignment), { month: "short", day: "numeric" })}</small></span></li>`));
+  upcoming.slice(0, 2).forEach(assignment => notifications.push(`<li class="notification-item"><span class="notification-mark due-mark">•</span><span><strong>Upcoming deadline</strong><small>${escapeHTML(assignment.title)} · ${formattedDate(assignmentDueKey(assignment))}</small></span></li>`));
+  const notificationMarkup = notifications.length ? notifications.slice(0, 4).join("") : '<li class="student-empty-state">No new notifications. You’re up to date.</li>';
+
+  return `<div class="student-dashboard">
+    <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><div class="welcome-decoration" aria-hidden="true"><span>CH</span></div></section>
+    <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" style="--progress-value:${progress}"><span>${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
+    <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section></aside></div>
+  </div>`;
 }
 
 function renderDashboard(role) {
   if (role === "learner") {
-    const due = cachedAssignments.filter(a => a.status !== "completed").length;
-    return '<div class="stats-grid">' +
-      '<div class="stat-card"><div class="label">Enrolled Courses</div><div class="value">' + cachedCourses.length + '</div></div>' +
-      '<div class="stat-card"><div class="label">Assignments Due</div><div class="value">' + due + '</div></div>' +
-      '<div class="stat-card"><div class="label">Average Grade</div><div class="value">91%</div></div>' +
-      '<div class="stat-card"><div class="label">Completion</div><div class="value">61%</div></div></div>' +
-      '<div class="card"><h3>Continue Learning</h3><div class="course-grid">' +
-      cachedCourses.filter(c => c.status !== "completed").map(c =>
-        '<div class="course-card"><div class="code">' + c.code + '</div><h4>' + c.title + '</h4>' +
-        '<div class="meta">' + c.instructor + '</div>' +
-        '<div class="progress-bar"><div class="progress-fill" style="width:' + (c.progress||0) + '%"></div></div>' +
-        '<div class="meta" style="margin-top:0.4rem">' + (c.progress||0) + '% complete</div></div>'
-      ).join("") + '</div></div>';
+    return renderLearnerDashboard();
   }
   if (role === "lecturer") {
     const my = cachedCourses.filter(c => c.instructor && c.instructor.includes("Chen"));
