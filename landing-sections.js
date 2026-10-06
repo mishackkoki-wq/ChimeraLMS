@@ -10,7 +10,7 @@ if (landingSections) {
         <div class="reference-section-label"><span>02</span><i></i><span>About Us</span></div>
         <h2 id="about-heading">Founded in 2013, Chimera Holdings has grown into a trusted leader in <span class="accent">ICT services and skills development.</span></h2>
         <p>With a hands-on, client-centric approach, we conceptualise and deliver innovative, fit-for-purpose solutions that drive growth, sustainability, and digital transformation.</p>
-        <a class="reference-learn-more" href="#certificates">Learn more <span aria-hidden="true">↗</span></a>
+        <a class="reference-learn-more" href="https://chimeraholdings.co.za/about-us/" target="_blank" rel="noopener noreferrer">Learn more <span aria-hidden="true">↗</span></a>
       </div>
     </section>
 

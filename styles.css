@@ -1891,6 +1891,62 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
   .registration-privacy-note { text-align:center; }
 }
 
+/* Chimera LMS sign-in split screen */
+#login-screen {
+  padding:1.5rem;
+  background:#edf2f4;
+}
+body.light #login-screen { background:#edf2f4; }
+.login-container.login-layout {
+  display:grid;
+  grid-template-columns:minmax(0,1.02fr) minmax(400px,.98fr);
+  align-items:stretch;
+  justify-content:stretch;
+  width:min(1120px,100%);
+  height:min(740px,calc(100svh - 3rem));
+  min-height:620px;
+  max-width:1120px;
+  padding:0;
+  border-radius:20px;
+  overflow:hidden;
+  background:#fff;
+  color:#142a36;
+  box-shadow:0 24px 70px rgba(11,28,44,.16);
+}
+.login-container.login-layout::before { display:none; }
+.login-visual { position:relative; min-width:0; min-height:0; overflow:hidden; background:#0b1c2c; }
+.login-visual>img { display:block; width:100%; height:100%; object-fit:cover; object-position:center; }
+.login-visual::after { content:""; position:absolute; inset:35% 0 0; background:linear-gradient(180deg,transparent 0%,rgba(5,18,27,.2) 28%,rgba(5,18,27,.88) 100%); }
+.login-visual-copy { position:absolute; z-index:1; left:clamp(1.5rem,4vw,3rem); right:2rem; bottom:clamp(2rem,5vw,3.5rem); color:#fff; }
+.login-visual-copy>span { color:#f2c3c4; font-size:.72rem; font-weight:800; letter-spacing:.18em; }
+.login-visual-copy h2 { margin:.8rem 0 .55rem; font-size:clamp(1.7rem,3vw,2.5rem); line-height:1.12; }
+.login-visual-copy p { color:rgba(255,255,255,.8); font-size:.98rem; }
+.login-panel { display:flex; flex-direction:column; justify-content:center; min-width:0; padding:clamp(2rem,4vw,4rem); }
+.login-panel .login-brand { margin:0 0 2rem; text-align:left; }
+.login-panel .auth-brand-logo { width:min(205px,75%); margin:0 0 1.6rem; padding:0; background:transparent; }
+.login-panel .login-brand h1 { color:#142a36; font-size:2rem; }
+.login-panel .login-brand p { color:#657780; font-size:.95rem; }
+.login-panel .login-form { width:100%; max-width:390px; margin:0 auto; }
+.login-panel .login-form .form-group { margin-bottom:1.1rem; }
+.login-panel .login-form label { color:#263943; }
+.login-panel .login-form input,.login-panel .login-form select { min-height:48px; border-color:#cbd5da; border-radius:8px; background:#fff; }
+.login-panel .login-form input:focus,.login-panel .login-form select:focus { border-color:var(--chimera-red); box-shadow:0 0 0 3px rgba(155,27,30,.12); }
+.login-panel .btn-primary { background:var(--chimera-red); border-radius:999px; }
+.login-panel .btn-primary:hover { background:var(--chimera-red-dark); }
+.login-panel .auth-switch { color:#657780; }
+.login-panel .auth-switch a { color:var(--chimera-red); }
+.login-panel .demo-hint { color:#7b8990; line-height:1.5; }
+@media(max-width:760px) {
+  #login-screen { align-items:flex-start; padding:1rem; overflow-y:auto; }
+  .login-container.login-layout { grid-template-columns:1fr; width:min(560px,100%); height:auto; min-height:0; margin:auto; }
+  .login-visual { min-height:260px; height:32vh; max-height:340px; }
+  .login-visual>img { object-position:center 36%; }
+  .login-visual-copy { left:1.5rem; bottom:1.3rem; }
+  .login-visual-copy h2 { font-size:1.7rem; }
+  .login-panel { padding:2rem clamp(1.3rem,6vw,2.5rem) 2.3rem; }
+  .login-panel .login-brand { margin-bottom:1.5rem; }
+}
+
 /* LMS hero: supporting copy, supplied learner artwork, and the restored classroom image. */
 .hero-lms {
   grid-template-columns: minmax(0, .98fr) minmax(0, 1fr) minmax(0, 1fr);
