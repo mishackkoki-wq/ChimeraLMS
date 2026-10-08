@@ -8,17 +8,10 @@ const crypto = require("node:crypto");
 const PORT = Number(process.env.PORT || 5000);
 const HOST = process.env.HOST || "localhost";
 const DATA_FILE = path.join(__dirname, "data.json");
+const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
+const PROGRAMMES = JSON.parse(fs.readFileSync(PROGRAMMES_FILE, "utf8"));
 const JWT_SECRET = process.env.JWT_SECRET || "chimera-lms-local-development-secret-change-me";
 const TOKEN_TTL_SECONDS = 60 * 60 * 12;
-
-const dayOffset = offset => {
-  const date = new Date();
-  date.setHours(12, 0, 0, 0);
-  date.setDate(date.getDate() + offset);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-};
 
 function initialData() {
   return {
@@ -28,22 +21,9 @@ function initialData() {
       { id: "u3", name: "Marcus Rivera", email: "m.rivera@admin.edu", role: "admin", avatar: "MR", status: "Active", demo: true },
       { id: "u4", name: "Priya Patel", email: "p.patel@student.edu", role: "learner", avatar: "PP", status: "Active", demo: true }
     ],
-    courses: [
-      { id: "c1", code: "CS101", title: "Introduction to Programming", instructor: "Dr. Sarah Chen", instructorId: "u2", progress: 78, status: "in-progress", students: 142 },
-      { id: "c2", code: "MATH204", title: "Linear Algebra", instructor: "Prof. James Okonkwo", instructorId: "u6", progress: 45, status: "in-progress", students: 98 },
-      { id: "c3", code: "DS310", title: "Data Structures & Algorithms", instructor: "Dr. Amina Hassan", instructorId: "u7", progress: 92, status: "completed", students: 76 },
-      { id: "c4", code: "WEB220", title: "Web Development Fundamentals", instructor: "Dr. Sarah Chen", instructorId: "u2", progress: 30, status: "in-progress", students: 115 }
-    ],
-    assignments: [
-      { id: "a1", title: "Programming Fundamentals Quiz", course: "CS101", courseId: "c1", due: dayOffset(3), status: "pending", grade: null, type: "Quiz", createdBy: "u2" },
-      { id: "a2", title: "Matrix Operations Project", course: "MATH204", courseId: "c2", due: dayOffset(7), status: "in-progress", grade: null, type: "Project", createdBy: "u6" },
-      { id: "a3", title: "Responsive Learning Page", course: "WEB220", courseId: "c4", due: dayOffset(10), status: "pending", grade: null, type: "Assignment", createdBy: "u2" },
-      { id: "a4", title: "Python Basics Quiz", course: "CS101", courseId: "c1", due: dayOffset(-2), status: "completed", grade: 95, type: "Quiz", createdBy: "u2" }
-    ],
-    enrollments: [
-      { userId: "u1", courseId: "c1" }, { userId: "u1", courseId: "c2" }, { userId: "u1", courseId: "c4" },
-      { userId: "u4", courseId: "c1" }, { userId: "u4", courseId: "c4" }
-    ],
+    courses: PROGRAMMES,
+    assignments: [],
+    enrollments: [],
     submissions: [],
     materials: [],
     program_applications: [],
@@ -148,6 +128,10 @@ function normalizeRole(role) {
   return "learner";
 }
 
+function courseNameKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function requireRole(user, roles) {
   return Boolean(user && roles.includes(user.role));
 }
@@ -204,15 +188,18 @@ async function handle(request, response) {
     if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) return send(response, 400, { error: "Password must have at least 8 characters, one capital letter, and one number" });
     if (!body.identityNumber && !body.passportNumber) return send(response, 400, { error: "An identity or passport number is required" });
     if (!body.agreement) return send(response, 400, { error: "Please accept the registration agreement" });
+    const selectedProgramme = data.courses.find(course => courseNameKey(course.title) === courseNameKey(body.course));
+    if (!selectedProgramme) return send(response, 400, { error: "Choose one of the available certificate programmes" });
 
     const { salt, hash } = hashPassword(password);
     const learner = {
       id: crypto.randomUUID(), name: String(body.name).trim(), email, role: "learner", avatar: String(body.name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase(),
       status: "Active", passwordSalt: salt, passwordHash: hash,
       identityNumber: body.identityNumber || "", passportNumber: body.passportNumber || "", dateOfBirth: body.dateOfBirth || "", gender: body.gender || "", phone: body.phone || "", lastSchool: body.lastSchool || "", recoveryQuestion: body.recoveryQuestion || "",
-      recoveryAnswerHash: crypto.createHash("sha256").update(String(body.recoveryAnswer || "").trim().toLowerCase()).digest("hex"), selectedCourse: String(body.course || "")
+      recoveryAnswerHash: crypto.createHash("sha256").update(String(body.recoveryAnswer || "").trim().toLowerCase()).digest("hex"), selectedCourse: selectedProgramme.title
     };
     data.users.push(learner);
+    if (selectedProgramme) data.enrollments.push({ userId: learner.id, courseId: selectedProgramme.id });
     data.program_applications.push({ id: crypto.randomUUID(), userId: learner.id, course: learner.selectedCourse, status: "pending", submittedAt: new Date().toISOString() });
     saveData(data);
     return send(response, 201, { token: makeToken(learner), user: publicUser(learner) });
@@ -242,8 +229,9 @@ async function handle(request, response) {
   if (request.method === "GET" && route === "/api/courses") {
     let courses = data.courses;
     if (user.role === "learner") {
-      const enrolled = new Set(data.enrollments.filter(item => item.userId === user.id).map(item => item.courseId));
-      courses = courses.filter(course => enrolled.has(course.id));
+      const learner = data.users.find(item => item.id === user.id);
+      const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
+      courses = registeredProgramme ? courses.filter(course => courseNameKey(course.title) === registeredProgramme) : [];
     } else if (user.role === "lecturer") {
       courses = courses.filter(course => course.instructorId === user.id || course.instructor === user.name);
     }
@@ -253,8 +241,10 @@ async function handle(request, response) {
   if (request.method === "GET" && route === "/api/assignments") {
     let assignments = data.assignments;
     if (user.role === "learner") {
-      const enrolled = new Set(data.enrollments.filter(item => item.userId === user.id).map(item => item.courseId));
-      assignments = assignments.filter(assignment => enrolled.has(assignment.courseId));
+      const learner = data.users.find(item => item.id === user.id);
+      const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
+      const registeredCourseIds = new Set(data.courses.filter(course => courseNameKey(course.title) === registeredProgramme).map(course => course.id));
+      assignments = assignments.filter(assignment => registeredCourseIds.has(assignment.courseId));
     } else if (user.role === "lecturer") {
       const courseIds = new Set(data.courses.filter(course => course.instructorId === user.id || course.instructor === user.name).map(course => course.id));
       assignments = assignments.filter(assignment => courseIds.has(assignment.courseId));
@@ -272,8 +262,9 @@ async function handle(request, response) {
   }
   if (request.method === "GET" && route === "/api/stats") {
     if (user.role === "learner") {
-      const enrolled = new Set(data.enrollments.filter(item => item.userId === user.id).map(item => item.courseId));
-      const courseIds = new Set(data.courses.filter(course => enrolled.has(course.id)).map(course => course.id));
+      const learner = data.users.find(item => item.id === user.id);
+      const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
+      const courseIds = new Set(data.courses.filter(course => courseNameKey(course.title) === registeredProgramme).map(course => course.id));
       return send(response, 200, {
         courses: courseIds.size,
         assignments: data.assignments.filter(item => courseIds.has(item.courseId)).length,
@@ -293,7 +284,9 @@ async function handle(request, response) {
     const body = await readBody(request);
     const assignment = data.assignments.find(item => item.id === body.assignmentId);
     if (!assignment) return send(response, 404, { error: "Assignment not found" });
-    const enrolled = data.enrollments.some(item => item.userId === user.id && item.courseId === assignment.courseId);
+    const learner = data.users.find(item => item.id === user.id);
+    const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
+    const enrolled = data.courses.some(course => course.id === assignment.courseId && courseNameKey(course.title) === registeredProgramme);
     if (!enrolled) return send(response, 403, { error: "You are not enrolled in this course" });
     const submission = { id: crypto.randomUUID(), userId: user.id, assignmentId: assignment.id, comments: String(body.comments || ""), filename: String(body.filename || ""), submittedAt: new Date().toISOString() };
     data.submissions.push(submission);

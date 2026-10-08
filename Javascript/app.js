@@ -209,11 +209,14 @@ async function api(path, options = {}) {
 
 const navItems = {
   learner: [
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "courses", label: "My Courses", icon: "📚" },
-    { id: "assignments", label: "Assignments", icon: "📝" },
-    { id: "grades", label: "Grades & Feedback", icon: "⭐" },
-    { id: "progress", label: "Progress", icon: "📈" }
+    { id: "dashboard", label: "Dashboard", icon: "▦" },
+    { id: "courses", label: "My Courses", icon: "▣" },
+    { id: "learning-paths", label: "Learning Paths", icon: "⌘" },
+    { id: "practice-tests", label: "Practice Tests", icon: "◎" },
+    { id: "schedule", label: "Class Schedule", icon: "▦" },
+    { id: "progress", label: "Progress Analytics", icon: "↗" },
+    { id: "achievements", label: "Achievements", icon: "☆" },
+    { id: "settings", label: "Settings", icon: "⚙" }
   ],
   lecturer: [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
@@ -429,8 +432,10 @@ async function loadData() {
     currentUser.role === "admin" ? api("/users") : Promise.resolve(null),
     currentUser.role === "admin" ? api("/audit") : Promise.resolve(null)
   ]);
-  cachedCourses = courses || getOfflineCourses();
-  cachedAssignments = assignments || getOfflineAssignments();
+  // Learner access is based on the authenticated programme returned by the API.
+  // Do not fall back to a global demo catalogue when the API is unavailable.
+  cachedCourses = courses || (currentUser.role === "learner" ? [] : getOfflineCourses());
+  cachedAssignments = assignments || (currentUser.role === "learner" ? [] : getOfflineAssignments());
   cachedUsers = users || getOfflineUsers();
   cachedAudit = audit || getOfflineAudit();
 }
@@ -468,10 +473,21 @@ function getOfflineAudit() {
 
 function renderNav() {
   const nav = navItems[currentUser.role] || navItems.guest;
-  sidebarNav.innerHTML = nav.map(item =>
+  const navMarkup = nav.map(item =>
     '<button type="button" class="nav-item ' + (item.id === currentPage ? "active" : "") + '" data-page="' + item.id + '" title="' + item.label + '" aria-current="' + (item.id === currentPage ? "page" : "false") + '">' +
     '<span aria-hidden="true">' + item.icon + "</span><span>" + item.label + "</span></button>"
   ).join("");
+  const courseMarkup = currentUser.role === "learner" ? '<div class="sidebar-course-group"><p class="sidebar-section-label">MY COURSES</p>' +
+    learnerActiveCourses().slice(0, 5).map(course => {
+      const progress = Math.max(0, Math.min(100, Number(course.progress) || 0));
+      const code = escapeHTML(course.code || "Course");
+      const title = escapeHTML(course.title || "Course");
+      const nextAssignment = learnerUpcomingAssignments().find(assignment => assignment.course === course.code || assignment.course === course.title);
+      const days = nextAssignment ? Math.max(0, Math.ceil((parseDateKey(assignmentDueKey(nextAssignment)) - new Date(new Date().setHours(0, 0, 0, 0))) / 86400000)) : null;
+      const dueLabel = days === null ? "No upcoming due date" : days === 0 ? "Due today" : days + (days === 1 ? " day to due date" : " days to due date");
+      return '<button type="button" class="sidebar-course-item" data-course-page="courses" title="' + title + ' — ' + progress + '% complete"><span class="sidebar-course-icon" aria-hidden="true">◇</span><span class="sidebar-course-copy"><span class="sidebar-course-title">' + code + ' · ' + title + '</span><span class="sidebar-course-due">' + dueLabel + '</span></span><span class="sidebar-course-percent">' + progress + '%<i><b style="width:' + progress + '%"></b></i></span></button>';
+    }).join("") + '</div>' : "";
+  sidebarNav.innerHTML = (currentUser.role === "learner" ? '<p class="sidebar-section-label sidebar-main-label">MAIN MENU</p>' : "") + navMarkup + courseMarkup;
   sidebarNav.querySelectorAll(".nav-item").forEach(el => {
     el.addEventListener("click", () => {
       currentPage = el.dataset.page;
@@ -480,12 +496,19 @@ function renderNav() {
       renderPage();
     });
   });
+  sidebarNav.querySelectorAll("[data-course-page]").forEach(el => el.addEventListener("click", () => {
+    currentPage = el.dataset.coursePage;
+    closeMobileSidebar();
+    renderNav();
+    renderPage();
+  }));
 }
 
 function renderPage() {
   const titles = {
     dashboard: "Dashboard", courses: "Courses", assignments: "Assignments",
-    grades: "Grades & Feedback", progress: "My Progress", assessments: "Assessments",
+    grades: "Grades & Feedback", progress: "Progress Analytics", assessments: "Assessments",
+    "learning-paths": "Learning Paths", "practice-tests": "Practice Tests", schedule: "Class Schedule", achievements: "Achievements",
     grading: "Grading Queue", reports: "Reports", users: "User Management",
     security: "Security & Audit Logs", settings: "System Settings"
   };
@@ -497,18 +520,24 @@ function renderPage() {
     assignments: () => renderAssignments(),
     grades: () => renderGrades(),
     progress: () => renderProgress(),
+    "learning-paths": () => renderLearningPaths(),
+    "practice-tests": () => renderPracticeTests(),
+    schedule: () => '<div id="student-calendar"></div>',
+    achievements: () => renderAchievements(),
     assessments: () => renderAssessments(),
     grading: () => renderGrading(),
     reports: () => renderReports(role),
     users: () => renderUsers(),
     security: () => renderSecurity(),
-    settings: () => renderSettings()
+    settings: () => renderSettings(role)
   };
   contentArea.innerHTML = (map[currentPage] || (() => '<div class="empty-state"><p>Page under construction</p></div>'))();
   attachPageListeners();
 }
 
 function attachPageListeners() {
+  const editLearnerProfile = document.getElementById("edit-learner-profile");
+  if (editLearnerProfile) editLearnerProfile.addEventListener("click", openLearnerProfile);
   document.querySelectorAll("[data-submit-id]").forEach(btn => {
     btn.addEventListener("click", () => openSubmitModal(btn.dataset.submitId));
   });
@@ -640,8 +669,9 @@ function renderLearnerDashboard() {
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const courseCards = courses.length ? courses.slice(0, 4).map(course => {
     const courseProgress = Math.max(0, Math.min(100, Number(course.progress) || 0));
-    return `<article class="student-course-card"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">In progress</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseProgress}%"></span></div><small>${courseProgress}% complete</small></div></article>`;
-  }).join("") : '<div class="student-empty-state">No current courses yet. Your courses will appear here when your enrolment is active.</div>';
+    const moduleCount = Object.values(course.modules || {}).reduce((total, modules) => total + modules.length, 0);
+    return `<article class="student-course-card"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseProgress}%"></span></div><small>${courseProgress}% complete</small></div>${renderProgrammeModules(course, false, `View programme modules · ${moduleCount}`)}</article>`;
+  }).join("") : '<div class="student-empty-state">No registered programme is linked to this learner account yet. Once a programme is registered, its course and modules will appear here.</div>';
   const assignmentRows = upcoming.length ? upcoming.slice(0, 4).map(assignment => {
     const dueKey = assignmentDueKey(assignment);
     const daysUntil = Math.round((parseDateKey(dueKey) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
@@ -697,15 +727,51 @@ function renderDashboard(role) {
 function renderCourses(role) {
   let list = cachedCourses;
   if (role === "lecturer") list = cachedCourses.filter(c => c.instructor && c.instructor.includes("Chen"));
+  if (role === "learner") {
+    return list.length ? '<div class="registered-programme-list">' + list.map(course =>
+      '<article class="registered-programme-card"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span></div>' +
+      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + Math.max(0, Math.min(100, Number(course.progress) || 0)) + '%"></span></div><small>' + Math.max(0, Math.min(100, Number(course.progress) || 0)) + '% complete</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
+    ).join("") + '</div>' : '<div class="student-empty-state">No registered programme is linked to this learner account. When you register, only that programme and its modules will appear here.</div>';
+  }
   return '<div class="course-grid">' + list.map(c =>
-    '<div class="course-card"><div class="code">' + c.code + '</div><h4>' + c.title + '</h4>' +
-    '<div class="meta">' + c.instructor + '</div>' +
-    (role === "learner" ?
-      '<div class="progress-bar"><div class="progress-fill" style="width:' + (c.progress||0) + '%"></div></div>' +
-      '<div class="meta" style="margin-top:0.4rem">' + (c.progress||0) + '%</div>' :
-      '<div class="meta">' + (c.students||0) + ' students</div>') +
-    '</div>'
+    '<div class="course-card"><div class="code">' + escapeHTML(c.code) + '</div><h4>' + escapeHTML(c.title) + '</h4>' +
+    '<div class="meta">' + escapeHTML(c.instructor || "") + '</div><div class="meta">' + (c.students||0) + ' students</div></div>'
   ).join("") + '</div>';
+}
+
+function renderProgrammeModules(course, expanded = false, label = "View modules") {
+  const groups = Object.entries(course.modules || {});
+  if (!groups.length) return '<p class="student-empty-state">Module information will be added to this programme.</p>';
+  return '<details class="programme-modules"' + (expanded ? ' open' : '') + '><summary>' + escapeHTML(label) + '</summary><div class="programme-module-groups">' + groups.map(([group, modules]) =>
+    '<section class="programme-module-group"><h4>' + escapeHTML(group) + '</h4><ol>' + modules.map(module => '<li>' + escapeHTML(module) + '</li>').join("") + '</ol></section>'
+  ).join("") + '</div></details>';
+}
+
+function renderLearningPaths() {
+  const courses = learnerActiveCourses();
+  return '<div class="card"><h3>Your learning paths</h3><p style="color:var(--text-muted)">Continue building skills through the courses in your Chimera LMS programme.</p>' +
+    (courses.length ? '<div class="learning-path-list">' + courses.map(course => {
+      const progress = Math.max(0, Math.min(100, Number(course.progress) || 0));
+      return '<article class="learning-path-row"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h4>' + escapeHTML(course.title) + '</h4><p>' + escapeHTML(course.instructor || "Chimera LMS course") + '</p></div><div class="learning-path-progress"><strong>' + progress + '%</strong><div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div><small>Course progress</small></div></article>';
+    }).join("") + '</div>' : '<div class="student-empty-state">No active courses are available in your learning path yet.</div>') + '</div>';
+}
+
+function renderPracticeTests() {
+  const tests = cachedAssignments.filter(assignment => /quiz|test|exam|assessment/i.test((assignment.type || "") + " " + (assignment.title || "")));
+  return '<div class="card"><h3>Practice tests</h3><p style="color:var(--text-muted)">Review quizzes, tests, and exam practice linked to your courses.</p>' +
+    (tests.length ? '<div class="table-wrap"><table><thead><tr><th>Practice</th><th>Course</th><th>Due</th><th>Status</th></tr></thead><tbody>' + tests.map(test => '<tr><td>' + escapeHTML(test.title) + '</td><td>' + escapeHTML(test.course) + '</td><td>' + escapeHTML(test.due || "Date to be confirmed") + '</td><td><span class="status ' + escapeHTML(test.status) + '">' + escapeHTML(test.status) + '</span></td></tr>').join("") + '</tbody></table></div>' : '<div class="student-empty-state">There are no practice tests in your current assignments yet. Check back when your courses publish new activities.</div>') + '</div>';
+}
+
+function renderAchievements() {
+  const completedAssignments = cachedAssignments.filter(assignment => assignment.status === "completed").length;
+  const completedCourses = cachedCourses.filter(course => course.status === "completed").length;
+  const highProgressCourses = cachedCourses.filter(course => Number(course.progress) >= 90).length;
+  const milestones = [
+    { title: "First steps", detail: "Submit your first course assignment", earned: completedAssignments > 0, icon: "✓" },
+    { title: "Course finisher", detail: "Complete a course", earned: completedCourses > 0, icon: "◆" },
+    { title: "Almost there", detail: "Reach 90% progress in a course", earned: highProgressCourses > 0, icon: "↗" }
+  ];
+  return '<div class="card"><h3>Achievements</h3><p style="color:var(--text-muted)">Milestones from your learning activity.</p><div class="achievement-grid">' + milestones.map(milestone => '<article class="achievement-card ' + (milestone.earned ? "is-earned" : "") + '"><span aria-hidden="true">' + milestone.icon + '</span><div><strong>' + milestone.title + '</strong><small>' + milestone.detail + '</small></div><em>' + (milestone.earned ? "Earned" : "In progress") + '</em></article>').join("") + '</div></div>';
 }
 
 function renderAssignments() {
@@ -731,10 +797,11 @@ function renderGrades() {
 }
 
 function renderProgress() {
+  const overall = cachedCourses.length ? Math.round(cachedCourses.reduce((sum, course) => sum + Math.max(0, Math.min(100, Number(course.progress) || 0)), 0) / cachedCourses.length) : 0;
   return '<div class="stats-grid">' +
-    '<div class="stat-card"><div class="label">Overall Progress</div><div class="value">61%</div>' +
-    '<div class="progress-bar" style="margin-top:0.75rem"><div class="progress-fill" style="width:61%"></div></div></div>' +
-    '<div class="stat-card"><div class="label">Courses</div><div class="value">1 / ' + cachedCourses.length + '</div></div>' +
+    '<div class="stat-card"><div class="label">Overall Progress</div><div class="value">' + overall + '%</div>' +
+    '<div class="progress-bar" style="margin-top:0.75rem"><div class="progress-fill" style="width:' + overall + '%"></div></div></div>' +
+    '<div class="stat-card"><div class="label">Registered Programme</div><div class="value">' + cachedCourses.length + '</div></div>' +
     '<div class="stat-card"><div class="label">Submitted</div><div class="value">' +
     cachedAssignments.filter(a => a.status === "completed").length + ' / ' + cachedAssignments.length + '</div></div></div>' +
     '<div class="card"><h3>Course Progress</h3>' +
@@ -795,7 +862,10 @@ function renderSecurity() {
     ).join("") + '</tbody></table></div></div>';
 }
 
-function renderSettings() {
+function renderSettings(role) {
+  if (role === "learner") {
+    return '<div class="card"><h3>Learning preferences</h3><p style="color:var(--text-muted)">Manage your learner profile and dashboard display preferences.</p><div class="settings-action-row"><div><strong>Personal information</strong><small>Review or update your learner profile details.</small></div><button type="button" class="btn btn-primary" id="edit-learner-profile">Edit profile</button></div><div class="settings-action-row"><div><strong>Dashboard theme</strong><small>Switch between light and dark appearance from the top bar.</small></div><span class="status completed">' + (document.body.classList.contains("light") ? "Light" : "Dark") + ' theme</span></div></div>';
+  }
   return '<div class="card"><h3>System Settings</h3>' +
     '<div class="form-group"><label>Institution</label><input class="form-control" value="Chimera University" /></div>' +
     '<button class="btn btn-primary" onclick="showToast(\'Settings saved\')">Save</button></div>';
