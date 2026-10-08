@@ -126,33 +126,40 @@
 
   <!-- ========== LOGIN SCREEN ========== -->
   <div id="login-screen" class="screen">
-    <div class="login-container">
-      <div class="login-brand">
-        <img class="auth-brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
-        <h1>Learn @ Chimera</h1>
+    <div class="login-container login-layout">
+      <aside class="login-visual" aria-label="Chimera learner using digital learning tools">
+        <img src="signin-learner.png" alt="Learner interacting with digital learning and analytics" />
+        <div class="login-visual-copy"><span>CHIMERA LEARNING</span><h2>Build your skills.<br>Shape what’s next.</h2><p>Your learning journey starts here.</p></div>
+      </aside>
+      <div class="login-panel">
+        <div class="login-brand">
+          <img class="auth-brand-logo" src="chimera-holdings-logo.png" alt="Chimera Holdings" />
+          <h1>Welcome back</h1>
+          <p>Sign in to continue to your Chimera LMS.</p>
+        </div>
+        <form id="login-form" class="login-form">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="you@institution.edu" required />
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="••••••••" required />
+          </div>
+          <div class="form-group">
+            <label for="role">Login as</label>
+            <select id="role" required>
+              <option value="Learner">Learner</option>
+              <option value="Facilitator">Facilitator</option>
+              <option value="Administrator">Administrator</option>
+            
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Sign In</button>
+          <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Create one</a></p>
+          <p class="demo-hint">Demo: Use any email/password. Role selection controls the dashboard.</p>
+        </form>
       </div>
-      <form id="login-form" class="login-form">
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" placeholder="you@institution.edu" required />
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" placeholder="••••••••" required />
-        </div>
-        <div class="form-group">
-          <label for="role">Login as</label>
-          <select id="role" required>
-            <option value="learner">Learner / Student</option>
-            <option value="lecturer">Lecturer / Instructor</option>
-            <option value="admin">Administrator</option>
-            <option value="guest">Guest (Limited)</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary">Sign In</button>
-        <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Create one</a></p>
-        <p class="demo-hint">Demo: Use any email/password. Role selection controls the dashboard.</p>
-      </form>
     </div>
   </div>
 
