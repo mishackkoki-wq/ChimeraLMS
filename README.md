@@ -7,7 +7,7 @@ Modern role-based LMS built for the system design document (Learners, Lecturers,
 | Layer     | Technology                                      |
 |-----------|-------------------------------------------------|
 | Frontend  | HTML5 + CSS3 + Vanilla JS (no frameworks)       |
-| Backend   | Pure Python 3 (stdlib `http.server` + PyJWT)   |
+| Backend   | Node.js built-in HTTP server (no dependencies) |
 | Auth      | JWT (HS256)                                     |
 | Storage   | JSON file (`backend/data.json`)                 |
 
@@ -16,11 +16,12 @@ Modern role-based LMS built for the system design document (Learners, Lecturers,
 ```
 chimera-lms/
 ├── index.html          # Login + app shell
-├── styles.css          # Dark/light theme, responsive
-├── app.js              # Frontend logic + API client
+├── Css/styles.css      # Dark/light theme, responsive
+├── Javascript/app.js   # Frontend logic + API client
 ├── README.md
 └── backend/
-    ├── server.py       # REST API
+    ├── server.js       # JavaScript REST API
+    ├── package.json    # Node run scripts
     └── data.json       # Auto-created on first run
 ```
 
@@ -29,7 +30,7 @@ chimera-lms/
 ### 1. Start Backend (Terminal 1)
 ```bash
 cd backend
-python3 server.py
+npm start
 ```
 API runs at **http://localhost:5000**
 
@@ -41,7 +42,7 @@ Open **http://localhost:8080**
 
 ## Demo Accounts
 
-Any password works. You can also just select a role and click Sign In.
+Any password works for the seeded demo accounts. Select a role and sign in.
 
 | Role     | Email                  |
 |----------|------------------------|
@@ -81,14 +82,10 @@ Any password works. You can also just select a role and click Sign In.
 
 ## Security Notes (Demo)
 
-- Passwords are hashed with SHA-256 + salt (demo only)
-- Any password is accepted for convenience in demo mode
-- Change `SECRET_KEY` in `server.py` before any real deployment
+- Registered passwords are hashed with Node.js scrypt; seeded demo accounts accept any password
+- Set a private `JWT_SECRET` environment variable before deployment
 - For production: use PostgreSQL, proper password hashing (bcrypt/argon2), HTTPS, rate limiting
 
 ## Requirements
 
-- Python 3.8+
-- PyJWT (`pip install PyJWT` if not already present)
-
-No Node.js required for the current backend.
+- Node.js 18 or newer

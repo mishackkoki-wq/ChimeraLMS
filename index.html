@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Chimera Holdings | LMS</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="Css/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -224,7 +224,7 @@
 
   <!-- ========== MAIN APP ========== -->
   <div id="app-screen" class="screen">
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar" aria-label="Main navigation">
       <div class="sidebar-header">
         <img class="sidebar-brand-logo" src="assets/chimera-holdings-logo.png" alt="Chimera Holdings" />
       </div>
@@ -242,16 +242,24 @@
     </aside>
     <main class="main-content">
       <header class="topbar">
-        <h2 id="page-title">Dashboard</h2>
+        <div class="topbar-heading">
+          <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar"><span aria-hidden="true">☰</span></button>
+          <h2 id="page-title">Dashboard</h2>
+        </div>
         <div class="topbar-actions">
           <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
             <span id="theme-icon">☀️</span>
           </button>
-          <span class="badge" id="role-badge">Learner</span>
+          <button class="badge role-profile-button" id="role-profile-button" type="button" aria-label="Open learner profile" title="View and update profile">
+            <span class="profile-avatar-mini" id="profile-avatar-mini">AJ</span>
+            <span id="role-badge">Learner</span>
+            <span class="profile-chevron" aria-hidden="true">⌄</span>
+          </button>
         </div>
       </header>
       <div class="content" id="content-area"></div>
     </main>
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close navigation"></button>
   </div>
 
   <!-- MODAL -->

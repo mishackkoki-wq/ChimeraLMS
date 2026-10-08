@@ -1902,7 +1902,7 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
 
 /* Learner dashboard home */
 .sidebar-nav .nav-item.active { background:rgba(155,27,30,.16); color:#e07073; }
-#role-badge { background:rgba(155,27,30,.16); color:#e07073; }
+#role-badge { background:transparent; color:inherit; padding:0; }
 .student-dashboard { display:flex; flex-direction:column; gap:1.25rem; max-width:1500px; margin:0 auto; }
 .student-welcome { position:relative; display:flex; align-items:center; justify-content:space-between; min-height:170px; overflow:hidden; padding:2rem clamp(1.5rem,3vw,2.5rem); border:1px solid rgba(255,255,255,.07); border-radius:18px; background:linear-gradient(110deg,#071a26 0%,#0c3143 65%,#154458 100%); color:#fff; }
 .student-welcome::after { content:""; position:absolute; top:-120px; right:6%; width:310px; height:310px; border:1px solid rgba(255,255,255,.09); border-radius:50%; box-shadow:0 0 0 28px rgba(255,255,255,.025),0 0 0 58px rgba(255,255,255,.02); }
@@ -1911,6 +1911,7 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
 .student-welcome h1 { margin:.45rem 0 .55rem; color:#fff; font-size:clamp(1.5rem,2.5vw,2.2rem); line-height:1.18; }
 .student-welcome>div>p:last-child { color:#bdd0d8; }
 .welcome-decoration { z-index:1; display:grid; place-items:center; width:92px; height:92px; margin-right:clamp(1rem,4vw,3.5rem); border:1px solid rgba(255,255,255,.2); border-radius:28px; background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.04)); color:#fff; font-size:1.55rem; font-weight:800; letter-spacing:.08em; transform:rotate(-7deg); }
+.welcome-banner-image { position:relative; z-index:1; display:block; flex:0 1 430px; width:min(100%,430px); max-height:104px; height:auto; object-fit:contain; border-radius:10px; box-shadow:0 10px 26px rgba(0,0,0,.16); }
 .student-panel-eyebrow { margin:0; color:var(--text-muted); font-size:.68rem; font-weight:800; letter-spacing:.12em; }
 .student-metrics { display:grid; grid-template-columns:1.45fr 1fr 1fr; gap:1rem; }
 .student-metric-card { position:relative; min-width:0; min-height:130px; padding:1.15rem 1.25rem; border:1px solid var(--border); border-radius:14px; background:var(--bg-card); }
@@ -1989,6 +1990,132 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
 .notification-list .student-empty-state { width:100%; }
 body.light .student-welcome { border-color:#0b1c2c; }
 body.light .student-course-card { background:#fff; }
+
+/* Light Chimera dashboard surfaces match the public landing page by default. */
+body.light #app-screen { background:#f3f6f8; }
+body.light #app-screen .main-content { background:#f3f6f8; }
+body.light #app-screen .topbar { background:#fff; border-bottom-color:#e0e6e9; }
+body.light #app-screen .content { background:#f3f6f8; }
+body.light #app-screen .student-panel,
+body.light #app-screen .student-calendar-card,
+body.light #app-screen .student-metric-card { box-shadow:0 8px 24px rgba(20,42,55,.045); }
+body.light #app-screen .student-panel,
+body.light #app-screen .student-calendar-card { border-color:#e0e6e9; }
+body.light #app-screen .student-course-card { border-color:#e3e8eb; background:#fff; }
+body.light #app-screen .student-text-link { color:var(--chimera-red); }
+body.light #app-screen .student-text-link:hover { color:var(--chimera-red-dark); }
+body.light #app-screen .calendar-day.is-today { color:var(--chimera-red); }
+body.light #app-screen .role-profile-button { color:var(--chimera-red); background:rgba(155,27,30,.08); }
+body.light #app-screen .profile-chevron { color:var(--chimera-red); }
+
+/* Polished learner portal sidebar and profile controls */
+#app-screen .sidebar {
+  width:clamp(270px,18.15vw,348px);
+  min-height:100vh;
+  background:linear-gradient(180deg,#192638 0%,#101c2a 58%,#0b1622 100%);
+  border-right:1px solid rgba(148,163,184,.16);
+  box-shadow:8px 0 30px rgba(2,8,16,.14);
+}
+#app-screen .sidebar-header {
+  min-height:102px;
+  padding:1rem 1.5rem;
+  border-bottom:1px solid rgba(148,163,184,.16);
+}
+#app-screen .sidebar-header .sidebar-brand-logo {
+  width:min(263px,100%);
+  padding:.25rem .45rem;
+  border-radius:6px;
+  background:#fff;
+}
+#app-screen .sidebar-nav { padding:1.5rem .9rem; }
+#app-screen .nav-item {
+  min-height:60px;
+  margin:.45rem 0;
+  padding:.7rem .85rem;
+  border:1px solid transparent;
+  border-radius:11px;
+  color:#aab8ca;
+  font-weight:600;
+  letter-spacing:.005em;
+}
+#app-screen .nav-item>span:first-child {
+  display:grid;
+  place-items:center;
+  flex:0 0 32px;
+  width:32px;
+  height:32px;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:9px;
+  background:rgba(255,255,255,.045);
+  font-size:.98rem;
+}
+#app-screen .nav-item:hover {
+  border-color:rgba(148,163,184,.15);
+  background:rgba(255,255,255,.055);
+  color:#fff;
+}
+#app-screen .nav-item.active {
+  border-color:rgba(198,43,50,.2);
+  background:linear-gradient(95deg,rgba(155,27,30,.28),rgba(155,27,30,.09));
+  box-shadow:inset 3px 0 #b52a30;
+  color:#ff9295;
+}
+#app-screen .nav-item.active>span:first-child {
+  border-color:rgba(206,54,61,.25);
+  background:rgba(155,27,30,.28);
+}
+#app-screen .sidebar-footer { border-top:1px solid rgba(148,163,184,.16); }
+#app-screen .sidebar-footer .user-info {
+  margin-bottom:.8rem;
+  padding:.75rem;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:12px;
+  background:rgba(255,255,255,.045);
+}
+#app-screen .sidebar-footer .avatar,
+.profile-avatar-mini {
+  background:linear-gradient(145deg,#b72a30,#76191d);
+  box-shadow:0 5px 14px rgba(120,22,28,.25);
+}
+#app-screen .sidebar-footer .btn { width:100%; }
+.role-profile-button {
+  display:inline-flex;
+  align-items:center;
+  gap:.55rem;
+  min-height:42px;
+  padding:.3rem .7rem .3rem .35rem;
+  border:1px solid rgba(198,43,50,.18);
+  background:rgba(155,27,30,.15);
+  color:#ff9295;
+  cursor:pointer;
+  font:inherit;
+  transition:background .18s,border-color .18s,transform .18s;
+}
+.role-profile-button:hover { border-color:rgba(220,80,86,.45); background:rgba(155,27,30,.26); transform:translateY(-1px); }
+.role-profile-button:focus-visible { outline:3px solid rgba(220,80,86,.35); outline-offset:2px; }
+.profile-avatar-mini { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; color:#fff; font-size:.68rem; font-weight:800; letter-spacing:.02em; }
+.profile-chevron { color:#dda1a4; font-size:1.1rem; line-height:1; }
+.profile-intro { margin-bottom:1.1rem; color:var(--text-muted); font-size:.88rem; }
+.profile-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.9rem 1rem; }
+.profile-field { display:flex; min-width:0; flex-direction:column; gap:.38rem; color:var(--text-muted); font-size:.78rem; font-weight:700; }
+.profile-field .form-control { width:100%; min-height:42px; padding:.6rem .7rem; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:.86rem; }
+.profile-field .form-control:focus { outline:none; border-color:var(--chimera-red); box-shadow:0 0 0 3px rgba(155,27,30,.15); }
+#modal-overlay.profile-modal-open .modal { max-width:680px; }
+body.light #modal-overlay.profile-modal-open { --bg:#f3f6f8; --bg-card:#fff; --bg-hover:#f1f3f5; --border:#d8dee9; --text:#172d39; --text-muted:#657580; }
+body.light #app-screen .sidebar { background:linear-gradient(180deg,#17283b 0%,#112034 100%); }
+@media(max-width:768px) {
+  #app-screen .sidebar { width:76px; }
+  #app-screen .sidebar-header { min-height:78px; padding:.7rem; }
+  #app-screen .sidebar-header .sidebar-brand-logo { width:44px; height:44px; padding:0; object-fit:cover; object-position:left center; }
+  #app-screen .nav-item { padding:.5rem; }
+  #app-screen .nav-item>span:first-child { flex-basis:36px; width:36px; height:36px; }
+  #app-screen .sidebar-footer { padding:.75rem .5rem; }
+  #app-screen .sidebar-footer .user-info { justify-content:center; padding:.4rem; }
+}
+@media(max-width:560px) {
+  .profile-form-grid { grid-template-columns:1fr; }
+  #modal-overlay.profile-modal-open .modal { max-width:100%; }
+}
 @media(max-width:1100px) {
   .student-dashboard-grid { grid-template-columns:minmax(0,1.35fr) minmax(270px,.9fr); }
   .student-metrics { grid-template-columns:1.2fr 1fr 1fr; }
@@ -2002,7 +2129,9 @@ body.light .student-course-card { background:#fff; }
   .overall-progress-card { grid-column:1/-1; }
   .student-courses-grid { grid-template-columns:1fr; }
   .student-welcome { min-height:150px; }
-  .welcome-decoration { width:58px; height:58px; margin-right:0; border-radius:18px; font-size:1rem; }
+  .student-welcome { display:block; padding:1.5rem 1.25rem 3.8rem; }
+  .student-welcome>div:first-child { max-width:100%; }
+  .welcome-banner-image { position:absolute; right:1rem; bottom:.75rem; width:min(240px,58%); max-height:38px; }
   .student-dashboard-side { grid-template-columns:1fr; }
   .student-assignment-row { gap:.6rem; }
   .student-assignment-row .btn-primary { padding:.42rem .6rem; font-size:.75rem; }
@@ -2099,5 +2228,72 @@ body.light #login-screen { background:#edf2f4; }
   .hero-lms .hero-left { padding: 2.5rem 1.4rem; }
   .hero-art-panel,.hero-classroom-panel { aspect-ratio: 4 / 3; }
   .hero-lms .hero-statement { font-size: clamp(2.35rem, 10vw, 3.3rem); }
+}
+
+/* Interactive Chimera sidebar */
+#app-screen .topbar-heading { display:flex; align-items:center; gap:1rem; min-width:0; }
+#app-screen .topbar-heading h2 { margin:0; }
+#app-screen .sidebar-toggle {
+  display:grid;
+  place-items:center;
+  flex:0 0 40px;
+  width:40px;
+  height:40px;
+  border:1px solid rgba(155,27,30,.18);
+  border-radius:10px;
+  background:rgba(155,27,30,.07);
+  color:var(--chimera-red);
+  font:inherit;
+  font-size:1.1rem;
+  cursor:pointer;
+  transition:background .18s,border-color .18s,transform .18s;
+}
+#app-screen .sidebar-toggle:hover { transform:translateY(-1px); border-color:rgba(155,27,30,.4); background:rgba(155,27,30,.13); }
+#app-screen .sidebar-toggle:focus-visible { outline:3px solid rgba(155,27,30,.24); outline-offset:2px; }
+#app-screen .nav-item { width:100%; border-radius:11px; background:transparent; text-align:left; font:inherit; cursor:pointer; }
+#app-screen.sidebar-collapsed .sidebar { width:82px; }
+#app-screen.sidebar-collapsed .sidebar-header { justify-content:center; padding:.8rem; }
+#app-screen.sidebar-collapsed .sidebar-header .sidebar-brand-logo { width:48px; height:48px; padding:0; object-fit:cover; object-position:left center; }
+#app-screen.sidebar-collapsed .nav-item { justify-content:center; padding:.5rem; }
+#app-screen.sidebar-collapsed .nav-item>span:not(:first-child) { display:none; }
+#app-screen.sidebar-collapsed .nav-item>span:first-child { flex-basis:38px; width:38px; height:38px; }
+#app-screen.sidebar-collapsed .sidebar-footer .user-info { justify-content:center; padding:.45rem; }
+#app-screen.sidebar-collapsed .sidebar-footer .user-info>div { display:none; }
+#app-screen.sidebar-collapsed .sidebar-footer .btn { width:42px; min-width:42px; padding:.65rem 0; overflow:hidden; font-size:0; }
+#app-screen.sidebar-collapsed .sidebar-footer .btn::before { content:"↪"; font-size:1rem; }
+#app-screen .sidebar { transition:width .24s ease,transform .24s ease,background .24s,border-color .24s; }
+.sidebar-backdrop { display:none; }
+@media(max-width:768px) {
+  #app-screen .sidebar,
+  #app-screen.sidebar-collapsed .sidebar {
+    position:fixed;
+    z-index:80;
+    inset:0 auto 0 0;
+    width:min(292px,84vw);
+    min-height:100dvh;
+    transform:translateX(-105%);
+    box-shadow:14px 0 38px rgba(4,15,25,.28);
+  }
+  #app-screen .sidebar .nav-item span:last-child { display:block; }
+  #app-screen .sidebar .user-info>div { display:block; }
+  #app-screen .sidebar-footer .btn { display:block; }
+  #app-screen.sidebar-open .sidebar { transform:translateX(0); }
+  #app-screen.sidebar-collapsed .sidebar-header { justify-content:flex-start; padding:1rem 1.25rem; }
+  #app-screen.sidebar-collapsed .sidebar-header .sidebar-brand-logo { width:min(210px,100%); height:auto; padding:.25rem .45rem; object-fit:contain; }
+  #app-screen.sidebar-collapsed .nav-item { justify-content:flex-start; padding:.65rem .8rem; }
+  #app-screen.sidebar-collapsed .nav-item>span:not(:first-child) { display:block; }
+  #app-screen.sidebar-collapsed .sidebar-footer .user-info>div { display:block; }
+  #app-screen.sidebar-collapsed .sidebar-footer .btn { width:100%; min-width:0; padding:.65rem .9rem; overflow:visible; font-size:.9rem; }
+  #app-screen.sidebar-collapsed .sidebar-footer .btn::before { content:none; }
+  #app-screen.sidebar-open .sidebar-backdrop { display:block; position:fixed; z-index:70; inset:0; border:0; background:rgba(7,18,28,.58); cursor:pointer; }
+  #app-screen .topbar { padding:1rem 1.1rem; }
+  #app-screen .content { padding:1.2rem; }
+}
+@media(max-width:440px) {
+  #app-screen .topbar-heading { gap:.65rem; }
+  #app-screen .topbar h2 { font-size:1.08rem; }
+  #app-screen .topbar-actions { gap:.45rem; }
+  #app-screen .role-profile-button { gap:.35rem; padding:.25rem .45rem .25rem .3rem; }
+  #app-screen .profile-avatar-mini { width:27px; height:27px; }
 }
 

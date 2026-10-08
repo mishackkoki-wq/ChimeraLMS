@@ -1,5 +1,5 @@
 // ==================== CHIMERA LMS (Full-Stack Frontend) ====================
-// Connects to Python backend at http://localhost:5000
+// Connects to the JavaScript backend at http://localhost:5000
 // Falls back to offline mock data if backend is unavailable
 
 const API = "http://localhost:5000/api";
@@ -18,9 +18,12 @@ const appScreen = document.getElementById("app-screen");
 const loginForm = document.getElementById("login-form");
 const logoutBtn = document.getElementById("logout-btn");
 const sidebarNav = document.getElementById("sidebar-nav");
+const sidebarToggle = document.getElementById("sidebar-toggle");
+const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 const contentArea = document.getElementById("content-area");
 const pageTitle = document.getElementById("page-title");
 const roleBadge = document.getElementById("role-badge");
+const roleProfileButton = document.getElementById("role-profile-button");
 const themeToggle = document.getElementById("theme-toggle");
 const themeIcon = document.getElementById("theme-icon");
 const modalOverlay = document.getElementById("modal-overlay");
@@ -234,7 +237,8 @@ const navItems = {
 };
 
 function initTheme() {
-  if (localStorage.getItem("chimera-theme") === "light") {
+  const savedTheme = localStorage.getItem("chimera-theme");
+  if (savedTheme !== "dark") {
     document.body.classList.add("light");
     themeIcon.textContent = "🌙";
   } else {
@@ -247,6 +251,37 @@ themeToggle.addEventListener("click", () => {
   themeIcon.textContent = isLight ? "🌙" : "☀️";
   localStorage.setItem("chimera-theme", isLight ? "light" : "dark");
 });
+
+function closeMobileSidebar() {
+  appScreen.classList.remove("sidebar-open");
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  const isCollapsed = appScreen.classList.contains("sidebar-collapsed");
+  const label = isMobile ? "Open navigation" : isCollapsed ? "Expand sidebar" : "Collapse sidebar";
+  sidebarToggle.setAttribute("aria-expanded", String(isMobile ? false : !isCollapsed));
+  sidebarToggle.setAttribute("aria-label", label);
+  sidebarToggle.title = label;
+}
+
+sidebarToggle.addEventListener("click", () => {
+  if (window.matchMedia("(max-width: 768px)").matches) {
+    appScreen.classList.remove("sidebar-collapsed");
+    const isOpen = appScreen.classList.toggle("sidebar-open");
+    sidebarToggle.setAttribute("aria-expanded", String(isOpen));
+    sidebarToggle.setAttribute("aria-label", isOpen ? "Close navigation" : "Open navigation");
+    sidebarToggle.title = isOpen ? "Close navigation" : "Open navigation";
+    return;
+  }
+  const isCollapsed = appScreen.classList.toggle("sidebar-collapsed");
+  sidebarToggle.setAttribute("aria-expanded", String(!isCollapsed));
+  sidebarToggle.setAttribute("aria-label", isCollapsed ? "Expand sidebar" : "Collapse sidebar");
+  sidebarToggle.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
+});
+
+sidebarBackdrop.addEventListener("click", closeMobileSidebar);
+window.addEventListener("resize", () => {
+  if (!window.matchMedia("(max-width: 768px)").matches) closeMobileSidebar();
+});
+closeMobileSidebar();
 
 function showToast(message) {
   toastEl.textContent = message;
@@ -262,6 +297,7 @@ function openModal(title, bodyHtml, footerHtml) {
 }
 function closeModal() {
   modalOverlay.classList.remove("open");
+  modalOverlay.classList.remove("profile-modal-open");
   selectedFile = null;
 }
 modalClose.addEventListener("click", closeModal);
@@ -313,6 +349,60 @@ logoutBtn.addEventListener("click", () => {
   }
 });
 
+if (roleProfileButton) roleProfileButton.addEventListener("click", openLearnerProfile);
+
+async function openLearnerProfile() {
+  let profile = currentUser || {};
+  try {
+    profile = await api("/me") || profile;
+  } catch (error) {
+    showToast(error.message || "Could not load your profile");
+    return;
+  }
+
+  const field = (label, name, value = "", type = "text", autocomplete = "off") =>
+    `<label class="profile-field"><span>${label}</span><input class="form-control" type="${type}" name="${name}" value="${escapeHTML(value)}" autocomplete="${autocomplete}" /></label>`;
+  modalOverlay.classList.add("profile-modal-open");
+  openModal("Student Profile", `
+    <p class="profile-intro">View and update the personal information linked to your Chimera LMS account.</p>
+    <form id="student-profile-form" class="profile-form">
+      <div class="profile-form-grid">
+        ${field("Full name", "name", profile.name, "text", "name")}
+        ${field("Email address", "email", profile.email, "email", "email")}
+        ${field("Identity number", "identityNumber", profile.identityNumber)}
+        ${field("Passport number", "passportNumber", profile.passportNumber)}
+        ${field("Date of birth", "dateOfBirth", profile.dateOfBirth, "date", "bday")}
+        <label class="profile-field"><span>Gender</span><select class="form-control" name="gender"><option value="">Select gender</option><option value="female" ${profile.gender === "female" ? "selected" : ""}>Female</option><option value="male" ${profile.gender === "male" ? "selected" : ""}>Male</option><option value="prefer-not-to-say" ${profile.gender === "prefer-not-to-say" ? "selected" : ""}>Prefer not to say</option></select></label>
+        ${field("Contact phone number", "phone", profile.phone, "tel", "tel")}
+        ${field("Last school attended", "lastSchool", profile.lastSchool)}
+      </div>
+    </form>`,
+    '<button class="btn btn-ghost" id="profile-cancel">Cancel</button><button class="btn btn-primary" id="profile-save" form="student-profile-form">Save changes</button>'
+  );
+  document.getElementById("profile-cancel").onclick = closeModal;
+  document.getElementById("student-profile-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const updates = Object.fromEntries(formData.entries());
+    const saveButton = document.getElementById("profile-save");
+    saveButton.disabled = true;
+    try {
+      const savedProfile = await api("/me", { method: "PATCH", body: JSON.stringify(updates) });
+      currentUser = { ...currentUser, ...updates, ...(savedProfile || {}) };
+      currentUser.avatar = currentUser.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+      document.getElementById("user-name").textContent = currentUser.name;
+      document.getElementById("user-avatar").textContent = currentUser.avatar;
+      document.getElementById("profile-avatar-mini").textContent = currentUser.avatar;
+      closeModal();
+      showToast("Profile updated successfully");
+      if (currentPage === "dashboard") renderPage();
+    } catch (error) {
+      showToast(error.message || "Could not update your profile");
+      saveButton.disabled = false;
+    }
+  });
+}
+
 async function showApp() {
   if (typeof showScreen === "function") {
     showScreen("app");
@@ -326,6 +416,7 @@ async function showApp() {
   document.getElementById("user-role").textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
   document.getElementById("user-avatar").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
   roleBadge.textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  document.getElementById("profile-avatar-mini").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
   await loadData();
   renderNav();
   renderPage();
@@ -378,12 +469,13 @@ function getOfflineAudit() {
 function renderNav() {
   const nav = navItems[currentUser.role] || navItems.guest;
   sidebarNav.innerHTML = nav.map(item =>
-    '<div class="nav-item ' + (item.id === currentPage ? "active" : "") + '" data-page="' + item.id + '">' +
-    "<span>" + item.icon + "</span><span>" + item.label + "</span></div>"
+    '<button type="button" class="nav-item ' + (item.id === currentPage ? "active" : "") + '" data-page="' + item.id + '" title="' + item.label + '" aria-current="' + (item.id === currentPage ? "page" : "false") + '">' +
+    '<span aria-hidden="true">' + item.icon + "</span><span>" + item.label + "</span></button>"
   ).join("");
   sidebarNav.querySelectorAll(".nav-item").forEach(el => {
     el.addEventListener("click", () => {
       currentPage = el.dataset.page;
+      closeMobileSidebar();
       renderNav();
       renderPage();
     });
@@ -563,7 +655,7 @@ function renderLearnerDashboard() {
   const notificationMarkup = notifications.length ? notifications.slice(0, 4).join("") : '<li class="student-empty-state">No new notifications. You’re up to date.</li>';
 
   return `<div class="student-dashboard">
-    <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><div class="welcome-decoration" aria-hidden="true"><span>CH</span></div></section>
+    <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><img class="welcome-banner-image" src="assets/chimera-welcome-banner.png" alt="Chimera Holdings" /></section>
     <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" style="--progress-value:${progress}"><span>${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
     <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section></aside></div>
   </div>`;
@@ -594,7 +686,7 @@ function renderDashboard(role) {
       '<div class="stat-card"><div class="label">API</div><div class="value" style="font-size:1.1rem">JWT + JSON</div></div></div>' +
       '<div class="card"><h3>System Overview</h3><div class="table-wrap"><table>' +
       '<thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead><tbody>' +
-      '<tr><td>Backend</td><td>Python HTTP Server</td><td><span class="status completed">Running</span></td></tr>' +
+      '<tr><td>Backend</td><td>Node.js HTTP Server</td><td><span class="status completed">Running</span></td></tr>' +
       '<tr><td>Auth</td><td>JWT HS256</td><td><span class="status completed">Active</span></td></tr>' +
       '<tr><td>Storage</td><td>data.json</td><td><span class="status completed">OK</span></td></tr>' +
       '</tbody></table></div></div>';

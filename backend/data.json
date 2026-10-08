@@ -1,0 +1,190 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "name": "Alex Johnson",
+      "email": "alex.j@student.edu",
+      "role": "learner",
+      "avatar": "AJ",
+      "status": "Active",
+      "demo": true,
+      "lastLogin": "2026-10-08T10:12:57.989Z",
+      "identityNumber": "",
+      "passportNumber": "",
+      "dateOfBirth": "",
+      "gender": "",
+      "phone": "",
+      "lastSchool": ""
+    },
+    {
+      "id": "u2",
+      "name": "Dr. Sarah Chen",
+      "email": "s.chen@faculty.edu",
+      "role": "lecturer",
+      "avatar": "SC",
+      "status": "Active",
+      "demo": true,
+      "lastLogin": "2026-10-08T09:30:29.855Z"
+    },
+    {
+      "id": "u3",
+      "name": "Marcus Rivera",
+      "email": "m.rivera@admin.edu",
+      "role": "admin",
+      "avatar": "MR",
+      "status": "Active",
+      "demo": true,
+      "lastLogin": "2026-10-08T10:33:44.723Z"
+    },
+    {
+      "id": "u4",
+      "name": "Priya Patel",
+      "email": "p.patel@student.edu",
+      "role": "learner",
+      "avatar": "PP",
+      "status": "Active",
+      "demo": true
+    },
+    {
+      "id": "db17fbfe-c03c-4376-bc23-5302371953cd",
+      "name": "Phiwa Mthethwa",
+      "email": "phiwamthethwa431@gmail.com",
+      "role": "learner",
+      "avatar": "PM",
+      "status": "Active",
+      "passwordSalt": "67fdb3726a5417a25b96681c2cdc40bf",
+      "passwordHash": "0bf5ee35b54a1041b915842499225a70327ccb249d3ad0758f62c27956c6c53ccd1362ce6b80e4f1b583eb72d32831f7e116b2ea163a5865972dc9609168c60a",
+      "identityNumber": "0007295879089",
+      "passportNumber": "",
+      "dateOfBirth": "2000-08-05",
+      "gender": "male",
+      "phone": "+27698501397",
+      "lastSchool": "Khwezi H",
+      "recoveryQuestion": "What was the name of your first school?",
+      "recoveryAnswerHash": "d713a7e4d280683a32c7f39cfade58bbd424b9f04e542477e5dc7ba60608821d",
+      "selectedCourse": "Software Developer"
+    }
+  ],
+  "courses": [
+    {
+      "id": "c1",
+      "code": "CS101",
+      "title": "Introduction to Programming",
+      "instructor": "Dr. Sarah Chen",
+      "instructorId": "u2",
+      "progress": 78,
+      "status": "in-progress",
+      "students": 142
+    },
+    {
+      "id": "c2",
+      "code": "MATH204",
+      "title": "Linear Algebra",
+      "instructor": "Prof. James Okonkwo",
+      "instructorId": "u6",
+      "progress": 45,
+      "status": "in-progress",
+      "students": 98
+    },
+    {
+      "id": "c3",
+      "code": "DS310",
+      "title": "Data Structures & Algorithms",
+      "instructor": "Dr. Amina Hassan",
+      "instructorId": "u7",
+      "progress": 92,
+      "status": "completed",
+      "students": 76
+    },
+    {
+      "id": "c4",
+      "code": "WEB220",
+      "title": "Web Development Fundamentals",
+      "instructor": "Dr. Sarah Chen",
+      "instructorId": "u2",
+      "progress": 30,
+      "status": "in-progress",
+      "students": 115
+    }
+  ],
+  "assignments": [
+    {
+      "id": "a1",
+      "title": "Programming Fundamentals Quiz",
+      "course": "CS101",
+      "courseId": "c1",
+      "due": "2026-10-11",
+      "status": "pending",
+      "grade": null,
+      "type": "Quiz",
+      "createdBy": "u2"
+    },
+    {
+      "id": "a2",
+      "title": "Matrix Operations Project",
+      "course": "MATH204",
+      "courseId": "c2",
+      "due": "2026-10-15",
+      "status": "in-progress",
+      "grade": null,
+      "type": "Project",
+      "createdBy": "u6"
+    },
+    {
+      "id": "a3",
+      "title": "Responsive Learning Page",
+      "course": "WEB220",
+      "courseId": "c4",
+      "due": "2026-10-18",
+      "status": "pending",
+      "grade": null,
+      "type": "Assignment",
+      "createdBy": "u2"
+    },
+    {
+      "id": "a4",
+      "title": "Python Basics Quiz",
+      "course": "CS101",
+      "courseId": "c1",
+      "due": "2026-10-06",
+      "status": "completed",
+      "grade": 95,
+      "type": "Quiz",
+      "createdBy": "u2"
+    }
+  ],
+  "enrollments": [
+    {
+      "userId": "u1",
+      "courseId": "c1"
+    },
+    {
+      "userId": "u1",
+      "courseId": "c2"
+    },
+    {
+      "userId": "u1",
+      "courseId": "c4"
+    },
+    {
+      "userId": "u4",
+      "courseId": "c1"
+    },
+    {
+      "userId": "u4",
+      "courseId": "c4"
+    }
+  ],
+  "submissions": [],
+  "materials": [],
+  "program_applications": [
+    {
+      "id": "066b59b5-dbdb-4761-b80f-b8cdccb73368",
+      "userId": "db17fbfe-c03c-4376-bc23-5302371953cd",
+      "course": "Software Developer",
+      "status": "pending",
+      "submittedAt": "2026-10-08T10:29:57.513Z"
+    }
+  ],
+  "audit_log": []
+}
