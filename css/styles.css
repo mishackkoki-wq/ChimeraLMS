@@ -808,19 +808,19 @@ tr:hover td {
   justify-content: center;
   background: 
     linear-gradient(rgba(40, 10, 10, 0.75), rgba(30, 8, 8, 0.82)),
-    url("bg.webp") center/cover no-repeat fixed;
+    url("../assets/bg.webp") center/cover no-repeat fixed;
 }
 
 body.light #register-screen {
   background: 
     linear-gradient(rgba(255, 240, 240, 0.82), rgba(254, 226, 226, 0.88)),
-    url("bg.webp") center/cover no-repeat fixed;
+    url("../assets/bg.webp") center/cover no-repeat fixed;
 }
 
 body.light #login-screen {
   background: 
     linear-gradient(rgba(244, 246, 249, 0.82), rgba(240, 242, 245, 0.88)),
-    url("bg.webp") center/cover no-repeat fixed;
+    url("../assets/bg.webp") center/cover no-repeat fixed;
 }
 
 .register-theme .login-brand h1 {
