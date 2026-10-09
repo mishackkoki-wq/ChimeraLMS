@@ -24,6 +24,7 @@ function initialData() {
     courses: PROGRAMMES,
     assignments: [],
     enrollments: [],
+    attendance: [],
     submissions: [],
     materials: [],
     program_applications: [],
@@ -33,7 +34,9 @@ function initialData() {
 
 function loadData() {
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    if (!Array.isArray(data.attendance)) data.attendance = [];
+    return data;
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     const data = initialData();
@@ -101,12 +104,12 @@ function send(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
-function readBody(request) {
+function readBody(request, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = "";
     request.on("data", chunk => {
       body += chunk;
-      if (body.length > 1024 * 1024) {
+      if (body.length > maxBytes) {
         reject(Object.assign(new Error("Request body is too large"), { status: 413 }));
         request.destroy();
       }
@@ -132,8 +135,21 @@ function courseNameKey(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function isDateKey(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(`${value}T00:00:00Z`)) &&
+    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+}
+
 function requireRole(user, roles) {
   return Boolean(user && roles.includes(user.role));
+}
+
+function canManageCourse(user, course) {
+  return user.role === "admin" || (
+    user.role === "lecturer" &&
+    (course.instructorId === user.id || course.instructor === user.name)
+  );
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -249,7 +265,74 @@ async function handle(request, response) {
       const courseIds = new Set(data.courses.filter(course => course.instructorId === user.id || course.instructor === user.name).map(course => course.id));
       assignments = assignments.filter(assignment => courseIds.has(assignment.courseId));
     }
-    return send(response, 200, assignments);
+    const submissions = data.submissions.filter(submission => submission.userId === user.id);
+    const visibleAssignments = assignments.map(assignment => {
+      const submitted = submissions.some(submission => submission.assignmentId === assignment.id);
+      return { ...assignment, status: submitted ? "completed" : assignment.status };
+    });
+    return send(response, 200, visibleAssignments);
+  }
+
+  if (route === "/api/attendance" && request.method === "GET") {
+    if (!requireRole(user, ["lecturer", "admin"])) return send(response, 403, { error: "Forbidden" });
+    const courseId = url.searchParams.get("courseId") || "";
+    const date = url.searchParams.get("date") || "";
+    const course = data.courses.find(item => item.id === courseId);
+    if (!course || !canManageCourse(user, course)) return send(response, 403, { error: "You cannot manage attendance for this course" });
+    if (!isDateKey(date)) {
+      return send(response, 400, { error: "Choose a valid attendance date" });
+    }
+    const enrolledIds = new Set([
+      ...data.enrollments.filter(enrollment => enrollment.courseId === courseId).map(enrollment => enrollment.userId),
+      ...data.users.filter(learner => learner.role === "learner" && courseNameKey(learner.selectedCourse) === courseNameKey(course.title)).map(learner => learner.id)
+    ]);
+    const learners = data.users
+      .filter(learner => learner.role === "learner" && learner.status !== "Inactive" && enrolledIds.has(learner.id))
+      .map(learner => ({ id: learner.id, name: learner.name, email: learner.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const records = data.attendance.filter(record => record.courseId === courseId && record.date === date);
+    return send(response, 200, { courseId, date, learners, records });
+  }
+
+  if (route === "/api/attendance" && request.method === "POST") {
+    if (!requireRole(user, ["lecturer", "admin"])) return send(response, 403, { error: "Forbidden" });
+    const body = await readBody(request);
+    const course = data.courses.find(item => item.id === body.courseId);
+    if (!course || !canManageCourse(user, course)) return send(response, 403, { error: "You cannot manage attendance for this course" });
+    const date = String(body.date || "");
+    if (!isDateKey(date)) {
+      return send(response, 400, { error: "Choose a valid attendance date" });
+    }
+    if (!Array.isArray(body.records)) return send(response, 400, { error: "Attendance records are required" });
+    const enrolledIds = new Set([
+      ...data.enrollments.filter(enrollment => enrollment.courseId === course.id).map(enrollment => enrollment.userId),
+      ...data.users.filter(learner => learner.role === "learner" && courseNameKey(learner.selectedCourse) === courseNameKey(course.title)).map(learner => learner.id)
+    ]);
+    const validRecords = body.records.filter(record => record && enrolledIds.has(record.userId));
+    if (validRecords.length !== body.records.length || new Set(validRecords.map(record => record.userId)).size !== validRecords.length) {
+      return send(response, 400, { error: "Attendance includes an invalid or duplicate learner" });
+    }
+    if (validRecords.some(record => !["present", "absent"].includes(record.status))) {
+      return send(response, 400, { error: "Mark every learner present or absent before saving" });
+    }
+    const learners = data.users
+      .filter(learner => learner.role === "learner" && learner.status !== "Inactive" && enrolledIds.has(learner.id))
+      .map(learner => ({ id: learner.id, name: learner.name, email: learner.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (validRecords.length !== learners.length) return send(response, 400, { error: "Mark every enrolled learner before saving" });
+
+    data.attendance = data.attendance.filter(record => record.courseId !== course.id || record.date !== date);
+    const records = validRecords.map(record => ({
+      courseId: course.id,
+      date,
+      userId: record.userId,
+      status: record.status,
+      markedBy: user.id,
+      markedAt: new Date().toISOString()
+    }));
+    data.attendance.push(...records);
+    saveData(data);
+    return send(response, 200, { courseId: course.id, date, learners, records });
   }
 
   if (request.method === "GET" && route === "/api/users") {
@@ -281,18 +364,41 @@ async function handle(request, response) {
 
   if (request.method === "POST" && route === "/api/submissions") {
     if (!requireRole(user, ["learner"])) return send(response, 403, { error: "Forbidden" });
-    const body = await readBody(request);
+    const body = await readBody(request, 8 * 1024 * 1024);
     const assignment = data.assignments.find(item => item.id === body.assignmentId);
     if (!assignment) return send(response, 404, { error: "Assignment not found" });
     const learner = data.users.find(item => item.id === user.id);
     const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
     const enrolled = data.courses.some(course => course.id === assignment.courseId && courseNameKey(course.title) === registeredProgramme);
     if (!enrolled) return send(response, 403, { error: "You are not enrolled in this course" });
-    const submission = { id: crypto.randomUUID(), userId: user.id, assignmentId: assignment.id, comments: String(body.comments || ""), filename: String(body.filename || ""), submittedAt: new Date().toISOString() };
+    if (data.submissions.some(item => item.userId === user.id && item.assignmentId === assignment.id)) {
+      return send(response, 409, { error: "You have already submitted this assessment" });
+    }
+    const filename = String(body.filename || "").trim();
+    const fileContent = String(body.fileContent || "");
+    if (!filename || !/^[A-Za-z0-9+/]*={0,2}$/.test(fileContent) || !fileContent) {
+      return send(response, 400, { error: "Choose a file to submit" });
+    }
+    const fileBuffer = Buffer.from(fileContent, "base64");
+    if (fileBuffer.length > 5 * 1024 * 1024 || fileBuffer.toString("base64") !== fileContent) {
+      return send(response, 413, { error: "Submission files must be smaller than 5 MB" });
+    }
+    const submission = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      assignmentId: assignment.id,
+      comments: String(body.comments || ""),
+      filename: path.basename(filename).slice(0, 255),
+      fileType: String(body.fileType || "application/octet-stream").slice(0, 120),
+      fileSize: fileBuffer.length,
+      fileContent,
+      submittedAt: new Date().toISOString()
+    };
     data.submissions.push(submission);
-    assignment.status = "completed";
     saveData(data);
-    return send(response, 201, submission);
+    const publicSubmission = { ...submission };
+    delete publicSubmission.fileContent;
+    return send(response, 201, publicSubmission);
   }
 
   if (request.method === "POST" && route === "/api/assignments") {

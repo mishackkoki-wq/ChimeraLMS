@@ -2010,6 +2010,33 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
 .calendar-selected small { font-size:.68rem; }
 .calendar-event-dot { flex:0 0 7px; width:7px; height:7px; margin-top:.25rem; border-radius:50%; background:#e7aa5d; }
 .calendar-selected .calendar-no-events { color:var(--text-muted); }
+.attendance-card { max-width:1100px; }
+.attendance-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:1.25rem; margin-bottom:1.25rem; }
+.attendance-heading h3 { margin:0 0 .35rem; }
+.attendance-heading p { margin:0; color:var(--text-muted); font-size:.86rem; }
+.attendance-filters { display:flex; flex-wrap:wrap; gap:.8rem; }
+.attendance-filters label { display:grid; gap:.3rem; color:var(--text-muted); font-size:.72rem; font-weight:700; }
+.attendance-filters select,.attendance-filters input { min-width:190px; min-height:40px; padding:.45rem .65rem; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:.85rem; }
+.attendance-toolbar,.attendance-submit-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.8rem 0; color:var(--text-muted); font-size:.8rem; }
+.attendance-toolbar>div,.attendance-legend { display:flex; align-items:center; gap:.5rem; }
+.attendance-bulk-button { padding:.4rem .65rem; border:1px solid var(--border); border-radius:7px; background:var(--bg); color:var(--text); font:inherit; font-size:.75rem; cursor:pointer; }
+.attendance-bulk-button:hover { border-color:var(--chimera-red); }
+.attendance-table td { vertical-align:middle; }
+.attendance-choice { display:flex; gap:.45rem; }
+.attendance-status-button { min-width:82px; padding:.42rem .65rem; border:1px solid var(--border); border-radius:999px; background:var(--bg); font:inherit; font-size:.75rem; font-weight:750; cursor:pointer; }
+.attendance-status-button.is-present { color:#16834f; }
+.attendance-status-button.is-present.is-selected { border-color:#1b9c60; background:#dcfce7; color:#12633e; }
+.attendance-status-button.is-absent { color:#bd2830; }
+.attendance-status-button.is-absent.is-selected { border-color:#d83d45; background:#fee2e2; color:#9f1d25; }
+.attendance-status-button:focus-visible,.attendance-bulk-button:focus-visible { outline:3px solid rgba(155,27,30,.24); outline-offset:2px; }
+.attendance-legend { gap:.38rem; }
+.attendance-legend i { width:10px; height:10px; border-radius:50%; }
+.attendance-present-dot { background:#1b9c60; }
+.attendance-absent-dot { margin-left:.45rem; background:#d83d45; }
+.attendance-hidden-form { display:none; }
+.attendance-submit-row .btn-primary { width:auto; margin:0; background:var(--chimera-red); }
+.attendance-submit-row .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.assignments-page .empty-state { color:var(--text-muted); }
 .notifications-panel .student-panel-title { align-items:center; }
 .notification-count { display:grid; place-items:center; min-width:26px; height:26px; padding:0 .4rem; border-radius:50%; background:rgba(155,27,30,.16); color:#e07073; font-size:.76rem; font-weight:800; }
 .notification-list { display:flex; flex-direction:column; gap:.85rem; margin:0; padding:0; list-style:none; }
@@ -2039,6 +2066,12 @@ body.light #app-screen .student-course-card { border-color:#e3e8eb; background:#
 body.light #app-screen .student-text-link { color:var(--chimera-red); }
 body.light #app-screen .student-text-link:hover { color:var(--chimera-red-dark); }
 body.light #app-screen .calendar-day.is-today { color:var(--chimera-red); }
+body.light #app-screen .attendance-filters select,
+body.light #app-screen .attendance-filters input,
+body.light #app-screen .attendance-bulk-button,
+body.light #app-screen .attendance-status-button { background:#fff; }
+body.light #app-screen .attendance-status-button.is-present.is-selected { background:#dcfce7; }
+body.light #app-screen .attendance-status-button.is-absent.is-selected { background:#fee2e2; }
 body.light #app-screen .role-profile-button { color:var(--chimera-red); background:rgba(155,27,30,.08); }
 body.light #app-screen .profile-chevron { color:var(--chimera-red); }
 
@@ -2364,6 +2397,9 @@ body.light #login-screen { background:#edf2f4; }
   #app-screen.sidebar-open .sidebar-backdrop { display:block; position:fixed; z-index:70; inset:0; border:0; background:rgba(7,18,28,.58); cursor:pointer; }
   #app-screen .topbar { padding:1rem 1.1rem; }
   #app-screen .content { padding:1.2rem; }
+  .attendance-heading { align-items:stretch; flex-direction:column; }
+  .attendance-filters { display:grid; grid-template-columns:1fr 1fr; }
+  .attendance-filters select,.attendance-filters input { min-width:0; width:100%; }
 }
 @media(max-width:440px) {
   #app-screen .topbar-heading { gap:.65rem; }
@@ -2371,4 +2407,8 @@ body.light #login-screen { background:#edf2f4; }
   #app-screen .topbar-actions { gap:.45rem; }
   #app-screen .role-profile-button { gap:.35rem; padding:.25rem .45rem .25rem .3rem; }
   #app-screen .profile-avatar-mini { width:27px; height:27px; }
+  .attendance-toolbar,.attendance-submit-row { align-items:flex-start; flex-direction:column; }
+  .attendance-toolbar>div { flex-wrap:wrap; }
+  .attendance-filters { grid-template-columns:1fr; }
+  .attendance-submit-row .btn-primary { width:100%; }
 }

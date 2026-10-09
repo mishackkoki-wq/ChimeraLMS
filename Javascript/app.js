@@ -12,6 +12,9 @@ let cachedCourses = [];
 let cachedAssignments = [];
 let cachedUsers = [];
 let cachedAudit = [];
+let attendanceRegister = { courseId: "", date: "", learners: [], records: [] };
+let attendanceCourseId = "";
+let attendanceDate = "";
 
 const loginScreen = document.getElementById("login-screen");
 const appScreen = document.getElementById("app-screen");
@@ -234,9 +237,10 @@ const navItems = {
   learner: [
     { id: "dashboard", label: "Dashboard", icon: "▦" },
     { id: "courses", label: "My Courses", icon: "▣" },
+    { id: "assignments", label: "Assignments", icon: "▤" },
     { id: "learning-paths", label: "Learning Paths", icon: "⌘" },
     { id: "practice-tests", label: "Practice Tests", icon: "◎" },
-    { id: "schedule", label: "Class Schedule", icon: "▦" },
+    { id: "schedule", label: "Calendar", icon: "▦" },
     { id: "progress", label: "Progress Analytics", icon: "↗" },
     { id: "achievements", label: "Achievements", icon: "☆" },
     { id: "settings", label: "Settings", icon: "⚙" }
@@ -245,6 +249,7 @@ const navItems = {
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "courses", label: "My Courses", icon: "📚" },
     { id: "assessments", label: "Assessments", icon: "📋" },
+    { id: "attendance", label: "Attendance Register", icon: "🗓️" },
     { id: "grading", label: "Grading", icon: "✅" },
     { id: "reports", label: "Class Reports", icon: "📑" }
   ],
@@ -347,12 +352,14 @@ loginForm.addEventListener("submit", async (e) => {
       await showApp();
       showToast("Welcome, " + currentUser.name + "!");
     } else {
+      const normalizedRole = ({ learner: "learner", facilitator: "lecturer", administrator: "admin" })[role.toLowerCase()] || role.toLowerCase();
       currentUser = {
         id: "offline",
-        name: role === "admin" ? "Marcus Rivera" : role === "lecturer" ? "Dr. Sarah Chen" : role === "guest" ? "Guest User" : "Alex Johnson",
+        name: normalizedRole === "admin" ? "Marcus Rivera" : normalizedRole === "lecturer" ? "Dr. Sarah Chen" : "Alex Johnson",
         email: email || "demo@chimera.edu",
-        role: role,
-        avatar: role === "admin" ? "MR" : role === "lecturer" ? "SC" : role === "guest" ? "GU" : "AJ"
+        role: normalizedRole,
+        avatar: normalizedRole === "admin" ? "MR" : normalizedRole === "lecturer" ? "SC" : "AJ",
+        ...(normalizedRole === "learner" ? { selectedCourse: "Software Developer" } : {})
       };
       currentPage = "dashboard";
       await showApp();
@@ -439,9 +446,10 @@ async function showApp(historyMode = "replace") {
     appScreen.classList.add("active");
   }
   document.getElementById("user-name").textContent = currentUser.name;
-  document.getElementById("user-role").textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  const displayRole = currentUser.role === "lecturer" ? "Facilitator" : currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  document.getElementById("user-role").textContent = displayRole;
   document.getElementById("user-avatar").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
-  roleBadge.textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  roleBadge.textContent = displayRole;
   document.getElementById("profile-avatar-mini").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
   await loadData();
   renderNav();
@@ -457,33 +465,52 @@ async function loadData() {
   ]);
   // Learner access is based on the authenticated programme returned by the API.
   // Do not fall back to a global demo catalogue when the API is unavailable.
-  cachedCourses = courses || (currentUser.role === "learner" ? [] : getOfflineCourses());
-  cachedAssignments = assignments || (currentUser.role === "learner" ? [] : getOfflineAssignments());
+  const offlineCourses = getOfflineCourses();
+  cachedCourses = courses || (currentUser.role === "learner"
+    ? offlineCourses.filter(course => course.title === currentUser.selectedCourse)
+    : offlineCourses);
+  cachedAssignments = assignments || getOfflineAssignments().filter(assignment =>
+    currentUser.role !== "learner" || cachedCourses.some(course => course.id === assignment.courseId)
+  );
   cachedUsers = users || getOfflineUsers();
   cachedAudit = audit || getOfflineAudit();
 }
 
 function getOfflineCourses() {
   return [
-    { id: "c1", code: "CS101", title: "Introduction to Programming", instructor: "Dr. Sarah Chen", progress: 78, status: "in-progress", students: 142 },
-    { id: "c2", code: "MATH204", title: "Linear Algebra", instructor: "Prof. James Okonkwo", progress: 45, status: "in-progress", students: 98 },
-    { id: "c3", code: "DS310", title: "Data Structures & Algorithms", instructor: "Dr. Amina Hassan", progress: 92, status: "completed", students: 76 },
-    { id: "c4", code: "WEB220", title: "Web Development Fundamentals", instructor: "Dr. Sarah Chen", progress: 30, status: "in-progress", students: 115 }
+    { id: "cert-data-science", code: "DSP", title: "Data Science Practitioner", instructor: "Chimera Learning", instructorId: "u2", progress: 0, status: "in-progress", students: 0 },
+    { id: "cert-ai-software-developer", code: "AI-SDEV", title: "AI Software Developer", instructor: "Chimera Learning", instructorId: "u2", progress: 0, status: "in-progress", students: 0 },
+    { id: "cert-software-developer", code: "SDEV", title: "Software Developer", instructor: "Chimera Learning", instructorId: "u2", progress: 0, status: "in-progress", students: 0 },
+    { id: "cert-cyber-security-analyst", code: "CSA", title: "Cybersecurity Analyst", instructor: "Chimera Learning", instructorId: "u2", progress: 0, status: "in-progress", students: 0 },
+    { id: "cert-project-manager", code: "PM", title: "Project Manager", instructor: "Chimera Learning", instructorId: "u2", progress: 0, status: "in-progress", students: 0 }
   ];
 }
 function getOfflineAssignments() {
-  return [
-    { id: "a1", title: "Binary Search Trees Implementation", course: "DS310", due: "2026-10-08", status: "pending", grade: null, type: "Project" },
-    { id: "a2", title: "React Component Library", course: "WEB220", due: "2026-10-05", status: "in-progress", grade: null, type: "Assignment" },
-    { id: "a3", title: "Matrix Operations Project", course: "MATH204", due: "2026-09-28", status: "completed", grade: 88, type: "Project" },
-    { id: "a4", title: "Python Basics Quiz", course: "CS101", due: "2026-09-20", status: "completed", grade: 95, type: "Quiz" }
-  ];
+  const dueDate = days => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return localDateKey(date);
+  };
+  const defaults = cachedCourses.flatMap(course => [
+    { id: `offline-${course.id}-assignment`, courseId: course.id, title: `${course.title} Assignment`, course: course.code, due: dueDate(5), status: "pending", grade: null, type: "Assignment" },
+    { id: `offline-${course.id}-practical`, courseId: course.id, title: `${course.title} Practical`, course: course.code, due: dueDate(12), status: "pending", grade: null, type: "Practical" }
+  ]);
+  try {
+    const saved = JSON.parse(localStorage.getItem("chimera_offline_assignments") || "[]");
+    if (!Array.isArray(saved)) return defaults;
+    const savedById = new Map(saved.map(assignment => [assignment.id, assignment]));
+    const merged = defaults.map(assignment => ({ ...assignment, ...(savedById.get(assignment.id) || {}) }));
+    return [...merged, ...saved.filter(assignment => !defaults.some(item => item.id === assignment.id))];
+  } catch (error) {
+    console.error("Could not read offline assignments", error);
+    return defaults;
+  }
 }
 function getOfflineUsers() {
   return [
-    { name: "Alex Johnson", email: "alex.j@student.edu", role: "learner", status: "Active", lastLogin: "2026-10-01" },
+    { id: "u1", name: "Alex Johnson", email: "alex.j@student.edu", role: "learner", status: "Active", selectedCourse: "Software Developer", lastLogin: "2026-10-01" },
     { name: "Dr. Sarah Chen", email: "s.chen@faculty.edu", role: "lecturer", status: "Active", lastLogin: "2026-10-02" },
-    { name: "Priya Patel", email: "p.patel@student.edu", role: "learner", status: "Active", lastLogin: "2026-09-30" },
+    { id: "u4", name: "Priya Patel", email: "p.patel@student.edu", role: "learner", status: "Active", selectedCourse: "Software Developer", lastLogin: "2026-09-30" },
     { name: "Marcus Rivera", email: "m.rivera@admin.edu", role: "admin", status: "Active", lastLogin: "2026-10-02" }
   ];
 }
@@ -531,8 +558,8 @@ function renderPage() {
   const titles = {
     dashboard: "Dashboard", courses: "Courses", assignments: "Assignments",
     grades: "Grades & Feedback", progress: "Progress Analytics", assessments: "Assessments",
-    "learning-paths": "Learning Paths", "practice-tests": "Practice Tests", schedule: "Class Schedule", achievements: "Achievements",
-    grading: "Grading Queue", reports: "Reports", users: "User Management",
+    "learning-paths": "Learning Paths", "practice-tests": "Practice Tests", schedule: "Calendar", achievements: "Achievements",
+    attendance: "Attendance Register", grading: "Grading Queue", reports: "Reports", users: "User Management",
     security: "Security & Audit Logs", settings: "System Settings"
   };
   pageTitle.textContent = currentPage === "dashboard" && currentUser.role === "learner" ? "Dashboard Home" : (titles[currentPage] || "Dashboard");
@@ -546,6 +573,7 @@ function renderPage() {
     "learning-paths": () => renderLearningPaths(),
     "practice-tests": () => renderPracticeTests(),
     schedule: () => '<div id="student-calendar"></div>',
+    attendance: () => renderAttendancePage(),
     achievements: () => renderAchievements(),
     assessments: () => renderAssessments(),
     grading: () => renderGrading(),
@@ -579,6 +607,167 @@ function attachPageListeners() {
     });
   });
   bindStudentCalendar();
+  if (currentPage === "attendance") bindAttendanceRegister();
+}
+
+function renderAttendancePage() {
+  if (!cachedCourses.length) {
+    return '<section class="card"><h3>Attendance register</h3><p class="student-empty-state">No courses are assigned to this facilitator yet.</p></section>';
+  }
+  if (!attendanceCourseId || !cachedCourses.some(course => course.id === attendanceCourseId)) {
+    const courseWithLearners = cachedCourses.find(course =>
+      cachedUsers.some(learner => learner.role === "learner" && learner.selectedCourse === course.title)
+    );
+    attendanceCourseId = (courseWithLearners || cachedCourses[0]).id;
+  }
+  if (!attendanceDate) attendanceDate = localDateKey(new Date());
+  const courseOptions = cachedCourses.map(course =>
+    `<option value="${escapeHTML(course.id)}"${course.id === attendanceCourseId ? " selected" : ""}>${escapeHTML(course.code)} · ${escapeHTML(course.title)}</option>`
+  ).join("");
+  return `<section class="card attendance-card">
+    <div class="attendance-heading"><div><h3>Attendance register</h3><p>Mark learners present or absent for a course session.</p></div><div class="attendance-filters">
+      <label>Course<select id="attendance-course">${courseOptions}</select></label>
+      <label>Session date<input id="attendance-date" type="date" value="${escapeHTML(attendanceDate)}" required /></label>
+    </div></div>
+    <div id="attendance-register-body" aria-live="polite"><p class="student-empty-state">Loading enrolled learners…</p></div>
+    <div class="attendance-submit-row"><span class="attendance-legend"><i class="attendance-present-dot"></i>Present <i class="attendance-absent-dot"></i>Absent</span><button type="submit" class="btn btn-primary" form="attendance-register-form" disabled>Save attendance</button></div>
+    <form id="attendance-register-form" class="attendance-hidden-form"></form>
+  </section>`;
+}
+
+function attendanceStorageKey(courseId, date) {
+  return `chimera_attendance_${currentUser.id}_${courseId}_${date}`;
+}
+
+function getOfflineAttendanceRegister(courseId, date) {
+  const key = attendanceStorageKey(courseId, date);
+  let records = [];
+  try {
+    records = JSON.parse(localStorage.getItem(key) || "[]");
+    if (!Array.isArray(records)) records = [];
+  } catch (error) {
+    console.error("Could not read saved offline attendance", error);
+    showToast("Could not load locally saved attendance");
+  }
+  const learners = getOfflineUsers()
+    .filter(user => user.role === "learner" && user.status !== "Inactive" && (!user.selectedCourse || cachedCourses.some(course => course.id === courseId && course.title === user.selectedCourse)))
+    .map(user => ({ id: user.id, name: user.name, email: user.email }));
+  return { courseId, date, learners, records };
+}
+
+async function loadAttendanceRegister() {
+  const root = document.getElementById("attendance-register-body");
+  if (!root) return;
+  const courseId = attendanceCourseId;
+  const date = attendanceDate;
+  attendanceRegister = { courseId, date, learners: [], records: [] };
+  const saveButton = document.querySelector('.attendance-submit-row button[type="submit"]');
+  if (saveButton) saveButton.disabled = true;
+  if (!date) {
+    root.innerHTML = '<p class="student-empty-state" role="alert">Choose a session date to load attendance.</p>';
+    return;
+  }
+  root.innerHTML = '<p class="student-empty-state">Loading enrolled learners…</p>';
+  try {
+    const result = await api(`/attendance?courseId=${encodeURIComponent(courseId)}&date=${encodeURIComponent(date)}`);
+    if (courseId !== attendanceCourseId || date !== attendanceDate) return;
+    attendanceRegister = result || getOfflineAttendanceRegister(courseId, date);
+    renderAttendanceRows();
+  } catch (error) {
+    if (courseId !== attendanceCourseId || date !== attendanceDate) return;
+    root.innerHTML = `<p class="student-empty-state" role="alert">${escapeHTML(error.message || "Could not load the attendance register.")}</p>`;
+  }
+}
+
+function renderAttendanceRows() {
+  const root = document.getElementById("attendance-register-body");
+  if (!root) return;
+  if (!attendanceRegister.learners.length) {
+    root.innerHTML = '<p class="student-empty-state">No learners are enrolled in this course yet.</p>';
+    return;
+  }
+  const statuses = new Map(attendanceRegister.records.map(record => [record.userId, record.status]));
+  root.innerHTML = `<div class="attendance-toolbar"><span>${attendanceRegister.learners.length} enrolled learner${attendanceRegister.learners.length === 1 ? "" : "s"}</span><div><button type="button" class="attendance-bulk-button" data-attendance-bulk="present">Mark all present</button><button type="button" class="attendance-bulk-button" data-attendance-bulk="absent">Mark all absent</button></div></div>
+    <div class="table-wrap"><table class="attendance-table"><thead><tr><th>Learner</th><th>Email</th><th>Attendance</th></tr></thead><tbody>${attendanceRegister.learners.map(learner => {
+      const status = statuses.get(learner.id);
+      return `<tr><td>${escapeHTML(learner.name)}</td><td>${escapeHTML(learner.email)}</td><td><div class="attendance-choice" role="group" aria-label="Attendance for ${escapeHTML(learner.name)}">
+        <button type="button" class="attendance-status-button is-present${status === "present" ? " is-selected" : ""}" data-attendance-learner="${escapeHTML(learner.id)}" data-attendance-status="present" aria-pressed="${status === "present"}">Present</button>
+        <button type="button" class="attendance-status-button is-absent${status === "absent" ? " is-selected" : ""}" data-attendance-learner="${escapeHTML(learner.id)}" data-attendance-status="absent" aria-pressed="${status === "absent"}">Absent</button>
+      </div></td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  const saveButton = document.querySelector('.attendance-submit-row button[type="submit"]');
+  if (saveButton) {
+    const canSave = Boolean(attendanceRegister.learners.length) && attendanceRegister.learners.every(learner =>
+      statuses.has(learner.id) && ["present", "absent"].includes(statuses.get(learner.id))
+    );
+    saveButton.disabled = !canSave;
+  }
+  bindAttendanceRowButtons();
+}
+
+function setAttendanceStatus(userId, status) {
+  const records = attendanceRegister.records.filter(record => record.userId !== userId);
+  records.push({ userId, status });
+  attendanceRegister.records = records;
+  renderAttendanceRows();
+}
+
+function bindAttendanceRowButtons() {
+  document.querySelectorAll("[data-attendance-learner]").forEach(button => {
+    button.addEventListener("click", () => setAttendanceStatus(button.dataset.attendanceLearner, button.dataset.attendanceStatus));
+  });
+  document.querySelectorAll("[data-attendance-bulk]").forEach(button => {
+    button.addEventListener("click", () => {
+      attendanceRegister.records = attendanceRegister.learners.map(learner => ({
+        userId: learner.id,
+        status: button.dataset.attendanceBulk
+      }));
+      renderAttendanceRows();
+    });
+  });
+}
+
+function bindAttendanceRegister() {
+  const courseSelect = document.getElementById("attendance-course");
+  const dateInput = document.getElementById("attendance-date");
+  const form = document.getElementById("attendance-register-form");
+  if (!courseSelect || !dateInput || !form) return;
+  courseSelect.addEventListener("change", () => {
+    attendanceCourseId = courseSelect.value;
+    loadAttendanceRegister();
+  });
+  dateInput.addEventListener("change", () => {
+    attendanceDate = dateInput.value;
+    loadAttendanceRegister();
+  });
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (attendanceRegister.learners.some(learner => !attendanceRegister.records.some(record => record.userId === learner.id && ["present", "absent"].includes(record.status)))) {
+      showToast("Mark every learner present or absent before saving");
+      return;
+    }
+    try {
+      const result = await api("/attendance", {
+        method: "POST",
+        body: JSON.stringify({
+          courseId: attendanceCourseId,
+          date: attendanceDate,
+          records: attendanceRegister.records.map(({ userId, status }) => ({ userId, status }))
+        })
+      });
+      if (result) {
+        attendanceRegister = result;
+        showToast("Attendance register saved");
+      } else {
+        localStorage.setItem(attendanceStorageKey(attendanceCourseId, attendanceDate), JSON.stringify(attendanceRegister.records));
+        showToast("Attendance saved on this device (offline)");
+      }
+      renderAttendanceRows();
+    } catch (error) {
+      showToast(error.message || "Could not save attendance");
+    }
+  });
+  loadAttendanceRegister();
 }
 
 let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -699,7 +888,7 @@ function renderLearnerDashboard() {
     const dueKey = assignmentDueKey(assignment);
     const daysUntil = Math.round((parseDateKey(dueKey) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
     const dueLabel = daysUntil === 0 ? "Due today" : daysUntil === 1 ? "Due tomorrow" : `Due ${formattedDate(dueKey)}`;
-    return `<article class="student-assignment-row"><div class="assignment-date-chip"><strong>${parseDateKey(dueKey).getDate()}</strong><span>${parseDateKey(dueKey).toLocaleDateString(undefined, { month: "short" })}</span></div><div class="student-assignment-info"><h3>${escapeHTML(assignment.title)}</h3><p>${escapeHTML(assignment.course)} · ${escapeHTML(assignment.type || "Assignment")}</p><span class="assignment-due-label">${dueLabel}</span></div>${assignment.status === "pending" || assignment.status === "in-progress" ? `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit</button>` : ""}</article>`;
+    return `<article class="student-assignment-row"><div class="assignment-date-chip"><strong>${parseDateKey(dueKey).getDate()}</strong><span>${parseDateKey(dueKey).toLocaleDateString(undefined, { month: "short" })}</span></div><div class="student-assignment-info"><h3>${escapeHTML(assignment.title)}</h3><p>${escapeHTML(assignment.course)} · ${escapeHTML(assignment.type || "Assignment")}</p><span class="assignment-due-label">${dueLabel}</span></div>${assignment.status === "pending" || assignment.status === "in-progress" ? `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit ${/practical/i.test(assignment.type || "") ? "practical" : "assignment"}</button>` : ""}</article>`;
   }).join("") : '<div class="student-empty-state">You’re all caught up. No upcoming assignments.</div>';
   const notifications = [];
   if (currentUser.selectedCourse) notifications.push(`<li class="notification-item"><span class="notification-mark application-mark">✓</span><span><strong>Programme application received</strong><small>${escapeHTML(currentUser.selectedCourse)} is awaiting review.</small></span></li>`);
@@ -798,17 +987,12 @@ function renderAchievements() {
 }
 
 function renderAssignments() {
-  return '<div class="card"><h3>My Assignments</h3><div class="table-wrap"><table>' +
-    '<thead><tr><th>Title</th><th>Course</th><th>Due</th><th>Status</th><th>Grade</th><th></th></tr></thead><tbody>' +
-    cachedAssignments.map(a =>
-      '<tr><td>' + a.title + '</td><td>' + a.course + '</td><td>' + a.due + '</td>' +
-      '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
-      '<td>' + (a.grade != null ? a.grade + "%" : "—") + '</td><td>' +
-      (a.status === "pending" || a.status === "in-progress" ?
-        '<button class="btn btn-sm btn-primary" data-submit-id="' + a.id + '">Submit</button>' :
-        '<button class="btn btn-sm btn-ghost">View</button>') +
-      '</td></tr>'
-    ).join("") + '</tbody></table></div></div>';
+  const rows = cachedAssignments.map(assignment => {
+    const submissionType = /practical/i.test(assignment.type || "") ? "practical" : "assignment";
+    const canSubmit = assignment.status === "pending" || assignment.status === "in-progress";
+    return `<tr><td>${escapeHTML(assignment.title)}</td><td>${escapeHTML(assignment.course)}</td><td>${escapeHTML(assignment.due || "Date to be confirmed")}</td><td>${escapeHTML(assignment.type || "Assignment")}</td><td><span class="status ${escapeHTML(assignment.status)}">${escapeHTML(assignment.status)}</span></td><td>${assignment.grade != null ? `${escapeHTML(assignment.grade)}%` : "—"}</td><td>${canSubmit ? `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit ${submissionType}</button>` : '<span class="student-course-status">Submitted</span>'}</td></tr>`;
+  }).join("");
+  return `<div class="card"><h3>My Assignments &amp; Practicals</h3><div class="table-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Due</th><th>Type</th><th>Status</th><th>Grade</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7">No assignments or practicals are available yet.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function renderGrades() {
@@ -839,8 +1023,8 @@ function renderAssessments() {
   return '<div class="card"><h3>Assessments <button class="btn btn-sm btn-primary" id="create-assessment-btn">+ Create New</button></h3>' +
     '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Type</th><th>Due</th></tr></thead><tbody>' +
     cachedAssignments.map(a =>
-      '<tr><td>' + a.title + '</td><td>' + a.course + '</td><td>' + (a.type||"Assignment") + '</td><td>' + a.due + '</td></tr>'
-    ).join("") + '</tbody></table></div></div>';
+      '<tr><td>' + escapeHTML(a.title) + '</td><td>' + escapeHTML(a.course) + '</td><td>' + escapeHTML(a.type || "Assignment") + '</td><td>' + escapeHTML(a.due || "Date to be confirmed") + '</td></tr>'
+    ).join("") + (cachedAssignments.length ? "" : '<tr><td colspan="4">No assessments have been created yet.</td></tr>') + '</tbody></table></div></div>';
 }
 
 function renderGrading() {
@@ -897,33 +1081,91 @@ function renderSettings(role) {
 function openSubmitModal(assignmentId) {
   const assignment = cachedAssignments.find(a => a.id === assignmentId);
   if (!assignment) return;
-  openModal("Submit Assignment",
-    '<p style="margin-bottom:1rem;color:var(--text-muted)"><strong>' + assignment.title + '</strong><br>Course: ' + assignment.course + '</p>' +
+  const isPractical = /practical/i.test(assignment.type || "");
+  const submissionType = isPractical ? "practical" : "assignment";
+  openModal(isPractical ? "Submit Practical" : "Submit Assignment",
+    `<p style="margin-bottom:1rem;color:var(--text-muted)"><strong>${escapeHTML(assignment.title)}</strong><br>Course: ${escapeHTML(assignment.course)} · ${escapeHTML(assignment.type || "Assignment")}</p>` +
     '<div class="form-group"><label>Comments</label><textarea class="form-control" id="submit-comments"></textarea></div>' +
     '<div class="form-group"><label>File</label><div class="file-drop" id="file-drop"><div>📄 Click or drag file</div><div class="filename" id="file-name"></div></div>' +
     '<input type="file" id="file-input" style="display:none" /></div>',
-    '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-submit">Submit</button>'
+    `<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-submit">Submit ${submissionType}</button>`
   );
   setupFileDrop();
   document.getElementById("modal-cancel").onclick = closeModal;
   document.getElementById("modal-submit").onclick = async () => {
     if (!selectedFile) { showToast("Select a file"); return; }
+    const submitButton = document.getElementById("modal-submit");
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      showToast("Files must be smaller than 5 MB");
+      return;
+    }
+    submitButton.disabled = true;
     try {
-      await api("/submissions", { method: "POST", body: JSON.stringify({ assignmentId, comments: document.getElementById("submit-comments").value, filename: selectedFile.name }) });
-    } catch (e) {}
-    assignment.status = "completed";
-    closeModal();
-    showToast('"' + assignment.title + '" submitted!');
-    renderPage();
+      const fileDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Could not read the selected file"));
+        reader.readAsDataURL(selectedFile);
+      });
+      const fileContent = String(fileDataUrl).split(",")[1];
+      const result = await api("/submissions", {
+        method: "POST",
+        body: JSON.stringify({
+          assignmentId,
+          comments: document.getElementById("submit-comments").value,
+          filename: selectedFile.name,
+          fileType: selectedFile.type || "application/octet-stream",
+          fileContent
+        })
+      });
+      if (result === null) {
+        let offlineSubmissions;
+        try {
+          offlineSubmissions = JSON.parse(localStorage.getItem("chimera_offline_submissions") || "[]");
+        } catch (error) {
+          throw new Error("Could not read offline submissions stored on this device");
+        }
+        if (!Array.isArray(offlineSubmissions)) {
+          throw new Error("Offline submissions stored on this device are invalid");
+        }
+        offlineSubmissions = offlineSubmissions.filter(submission =>
+          submission.assignmentId !== assignmentId || submission.userId !== currentUser.id
+        );
+        offlineSubmissions.push({
+          userId: currentUser.id,
+          assignmentId,
+          comments: document.getElementById("submit-comments").value,
+          filename: selectedFile.name,
+          fileType: selectedFile.type || "application/octet-stream",
+          fileContent,
+          submittedAt: new Date().toISOString()
+        });
+        localStorage.setItem("chimera_offline_submissions", JSON.stringify(offlineSubmissions));
+        const savedAssignments = cachedAssignments.map(item =>
+          item.id === assignmentId ? { ...item, status: "completed" } : item
+        );
+        localStorage.setItem("chimera_offline_assignments", JSON.stringify(savedAssignments));
+        assignment.status = "completed";
+        showToast(`${isPractical ? "Practical" : "Assignment"} recorded in offline mode on this device`);
+      } else {
+        assignment.status = "completed";
+        showToast(`${isPractical ? "Practical" : "Assignment"} submitted successfully`);
+      }
+      closeModal();
+      renderPage();
+    } catch (error) {
+      submitButton.disabled = false;
+      showToast(error.message || `Could not submit the ${submissionType}`);
+    }
   };
 }
 
 function openCreateAssessmentModal() {
   openModal("Create Assessment",
-    '<div class="form-group"><label>Title</label><input class="form-control" id="assess-title" /></div>' +
+    '<div class="form-group"><label>Title</label><input class="form-control" id="assess-title" required /></div>' +
     '<div class="form-group"><label>Course</label><select class="form-control" id="assess-course">' +
-    cachedCourses.map(c => '<option>' + c.code + '</option>').join("") + '</select></div>' +
-    '<div class="form-group"><label>Type</label><select class="form-control" id="assess-type"><option>Assignment</option><option>Quiz</option><option>Project</option></select></div>' +
+    cachedCourses.map(c => '<option value="' + escapeHTML(c.code) + '">' + escapeHTML(c.code) + ' · ' + escapeHTML(c.title) + '</option>').join("") + '</select></div>' +
+    '<div class="form-group"><label>Type</label><select class="form-control" id="assess-type"><option>Assignment</option><option>Practical</option><option>Quiz</option><option>Project</option></select></div>' +
     '<div class="form-group"><label>Due</label><input type="date" class="form-control" id="assess-due" /></div>',
     '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-create">Create</button>'
   );
@@ -931,13 +1173,34 @@ function openCreateAssessmentModal() {
   document.getElementById("modal-create").onclick = async () => {
     const title = document.getElementById("assess-title").value.trim();
     if (!title) { showToast("Enter a title"); return; }
+    const assignmentDetails = {
+      title,
+      course: document.getElementById("assess-course").value,
+      type: document.getElementById("assess-type").value,
+      due: document.getElementById("assess-due").value
+    };
     try {
-      await api("/assignments", { method: "POST", body: JSON.stringify({ title, course: document.getElementById("assess-course").value, type: document.getElementById("assess-type").value, due: document.getElementById("assess-due").value }) });
-      await loadData();
-    } catch (e) {}
-    closeModal();
-    showToast('Assessment "' + title + '" created!');
-    renderPage();
+      const result = await api("/assignments", { method: "POST", body: JSON.stringify(assignmentDetails) });
+      if (result) {
+        await loadData();
+      } else {
+        const course = cachedCourses.find(item => item.code === assignmentDetails.course);
+        if (!course) { showToast("Choose a valid course"); return; }
+        cachedAssignments.push({
+          ...assignmentDetails,
+          id: `offline-${Date.now()}`,
+          courseId: course.id,
+          status: "pending",
+          grade: null
+        });
+        localStorage.setItem("chimera_offline_assignments", JSON.stringify(cachedAssignments));
+      }
+      closeModal();
+      showToast(`Assessment "${title}" created`);
+      renderPage();
+    } catch (error) {
+      showToast(error.message || "Could not create the assessment");
+    }
   };
 }
 
