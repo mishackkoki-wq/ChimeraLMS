@@ -38,14 +38,30 @@ const showRegisterLink = document.getElementById("show-register");
 const showLoginLink = document.getElementById("show-login");
 const homeScreen = document.getElementById("home-screen");
 
-function showScreen(name) {
+function showScreen(name, historyMode = "push") {
   [homeScreen, loginScreen, registerScreen, appScreen].forEach(s => s && s.classList.remove("active"));
   if (name === "home" && homeScreen) homeScreen.classList.add("active");
   else if (name === "login") loginScreen.classList.add("active");
   else if (name === "register") registerScreen.classList.add("active");
   else if (name === "app") appScreen.classList.add("active");
+  if (historyMode !== "none") {
+    const state = { screen: name };
+    if (historyMode === "replace" || history.state?.screen === name) {
+      history.replaceState(state, "", window.location.href);
+    } else {
+      history.pushState(state, "", window.location.href);
+    }
+  }
   window.scrollTo(0, 0);
 }
+
+history.replaceState({ screen: "home" }, "", window.location.href);
+window.addEventListener("popstate", event => {
+  const screen = event.state?.screen;
+  if (["home", "login", "register", "app"].includes(screen)) {
+    showScreen(screen, "none");
+  }
+});
 
 // Homepage buttons → Login / Register
 ["nav-login"].forEach(id => {
@@ -106,11 +122,19 @@ if (showLoginLink) {
   });
 }
 
+["login-home", "app-home-btn"].forEach(id => {
+  const link = document.getElementById(id);
+  if (link) link.addEventListener("click", (e) => {
+    e.preventDefault();
+    showScreen("home", "replace");
+  });
+});
+
 ["registration-home", "registration-back"].forEach(id => {
   const link = document.getElementById(id);
   if (link) link.addEventListener("click", (e) => {
     e.preventDefault();
-    showScreen("home");
+    showScreen("home", "replace");
   });
 });
 
@@ -173,7 +197,6 @@ if (registerForm) {
         currentUser = data.user;
         localStorage.setItem("chimera_token", authToken);
         currentPage = "dashboard";
-        if (typeof showScreen === "function") showScreen("app");
         await showApp();
         showToast("Application submitted for " + data.user.selectedCourse + ". Welcome, " + currentUser.name);
       } else {
@@ -345,7 +368,7 @@ logoutBtn.addEventListener("click", () => {
   currentUser = null;
   localStorage.removeItem("chimera_token");
   loginForm.reset();
-  if (typeof showScreen === "function") showScreen("home");
+  if (typeof showScreen === "function") showScreen("home", "replace");
   else {
     loginScreen.classList.add("active");
     appScreen.classList.remove("active");
@@ -406,9 +429,9 @@ async function openLearnerProfile() {
   });
 }
 
-async function showApp() {
+async function showApp(historyMode = "replace") {
   if (typeof showScreen === "function") {
-    showScreen("app");
+    showScreen("app", historyMode);
   } else {
     loginScreen.classList.remove("active");
     if (homeScreen) homeScreen.classList.remove("active");
@@ -990,7 +1013,7 @@ initTheme();
       if (me) {
         currentUser = me;
         currentPage = "dashboard";
-        await showApp();
+        await showApp("push");
       }
     } catch {
       localStorage.removeItem("chimera_token");
