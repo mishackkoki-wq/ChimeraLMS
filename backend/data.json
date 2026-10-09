@@ -64,6 +64,26 @@
       "recoveryAnswerHash": "d713a7e4d280683a32c7f39cfade58bbd424b9f04e542477e5dc7ba60608821d",
       "selectedCourse": "Software Developer",
       "lastLogin": "2026-10-08T11:59:40.484Z"
+    },
+    {
+      "id": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
+      "name": "mishack mashiane",
+      "username": "mishackkoki",
+      "email": "mishackkoki@gmail.com",
+      "role": "learner",
+      "avatar": "MM",
+      "status": "Active",
+      "passwordSalt": "11734ffec9273a56906682465ba5f70c",
+      "passwordHash": "2aa1c01f6e8037c925c04424ff36014d76b0ffd844a949348d0b514a5bb0dea74ca054549f6b202795b2d2afe1ee7f6f46002adb8fdeda4e3a76fa1a54c4d9e1",
+      "identityNumber": "0004216055089",
+      "passportNumber": "",
+      "dateOfBirth": "2000-04-21",
+      "gender": "male",
+      "phone": "0796899273",
+      "lastSchool": "thogoa",
+      "recoveryQuestion": "What was the name of your first school?",
+      "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
+      "selectedCourse": "Data Science Practitioner"
     }
   ],
   "courses": [
@@ -295,6 +315,10 @@
     {
       "userId": "db17fbfe-c03c-4376-bc23-5302371953cd",
       "courseId": "cert-software-developer"
+    },
+    {
+      "userId": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
+      "courseId": "cert-data-science"
     }
   ],
   "submissions": [],
@@ -306,7 +330,15 @@
       "course": "Software Developer",
       "status": "pending",
       "submittedAt": "2026-10-08T10:29:57.513Z"
+    },
+    {
+      "id": "0f6fe5e8-cf05-427d-ab10-5057f7dd88cb",
+      "userId": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
+      "course": "Data Science Practitioner",
+      "status": "pending",
+      "submittedAt": "2026-10-09T10:22:02.954Z"
     }
   ],
-  "audit_log": []
+  "audit_log": [],
+  "attendance": []
 }
