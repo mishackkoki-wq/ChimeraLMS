@@ -1,5 +1,5 @@
 :root {
-  --bg: #0f1419;
+  --bg: #d72219;
   --bg-card: #1a2332;
   --bg-hover: #243044;
   --border: #2d3a4f;
@@ -428,7 +428,7 @@ body {
 }
 
 .badge {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgba(246, 24, 3, 0.2);
   color: var(--primary);
   padding: 0.35rem 0.85rem;
   border-radius: 20px;
@@ -2261,7 +2261,7 @@ body.light #login-screen { background:#edf2f4; }
 .login-panel .btn-primary:hover { background:var(--chimera-red-dark); }
 .login-panel .auth-switch { color:#657780; }
 .login-panel .auth-switch a { color:var(--chimera-red); }
-.login-panel .demo-hint { color:#7b8990; line-height:1.5; }
+.login-panel .auth-hint { color:#7b8990; line-height:1.5; }
 .login-home-link { align-self:center; margin-top:1.1rem; color:var(--chimera-red); font-size:.92rem; font-weight:650; text-decoration:none; }
 .login-home-link:hover { color:var(--chimera-red-dark); text-decoration:underline; }
 .login-home-link:focus-visible { outline:3px solid rgba(155,27,30,.24); outline-offset:3px; border-radius:3px; }

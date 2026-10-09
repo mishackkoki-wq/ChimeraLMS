@@ -27,28 +27,24 @@ chimera-lms/
 
 ## Quick Start
 
-### 1. Start Backend (Terminal 1)
+### 1. Start Backend
 ```bash
 cd backend
 npm start
 ```
-API runs at **http://localhost:5000**
+API runs at **http://127.0.0.1:5000**. When opening this folder in VS Code, the
+workspace task starts the backend automatically; approve the task prompt if VS
+Code asks for permission. If it does not start, choose **Terminal → Run Task →
+Start Chimera LMS API**.
 
-### 2. Start Frontend (Terminal 2)
+### 2. Start Frontend
 ```bash
-python3 -m http.server 8080
+python -m http.server 8080
 ```
 Open **http://localhost:8080**
 
-## Demo Accounts
-
-Any password works for the seeded demo accounts. Select a role and sign in.
-
-| Role     | Email                  |
-|----------|------------------------|
-| Learner  | alex.j@student.edu     |
-| Lecturer | s.chen@faculty.edu     |
-| Admin    | m.rivera@admin.edu     |
+Sign in using the username (or email) and password for a registered account.
+Demo accounts are not accepted for authentication.
 
 ## API Endpoints
 
@@ -82,7 +78,7 @@ Any password works for the seeded demo accounts. Select a role and sign in.
 
 ## Security Notes (Demo)
 
-- Registered passwords are hashed with Node.js scrypt; seeded demo accounts accept any password
+- Registered passwords are hashed with Node.js scrypt; demo accounts cannot authenticate
 - Set a private `JWT_SECRET` environment variable before deployment
 - For production: use PostgreSQL, proper password hashing (bcrypt/argon2), HTTPS, rate limiting
 

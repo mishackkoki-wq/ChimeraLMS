@@ -139,25 +139,16 @@
         </div>
         <form id="login-form" class="login-form">
           <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" placeholder="you@institution.edu" required />
+            <label for="username">Username or email</label>
+            <input type="text" id="username" name="username" placeholder="Enter your username or email" autocomplete="username" required />
           </div>
           <div class="form-group">
             <label for="password">Password</label>
-            <input type="password" id="password" placeholder="••••••••" required />
-          </div>
-          <div class="form-group">
-            <label for="role">Login as</label>
-            <select id="role" required>
-              <option value="Learner">Learner</option>
-              <option value="Facilitator">Facilitator</option>
-              <option value="Administrator">Administrator</option>
-            
-            </select>
+            <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required />
           </div>
           <button type="submit" class="btn btn-primary">Sign In</button>
           <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Create one</a></p>
-          <p class="demo-hint">Demo: Use any email/password. Role selection controls the dashboard.</p>
+          <p class="auth-hint">Sign in with the username or email and password you used when registering.</p>
         </form>
         <a href="#" class="login-home-link" id="login-home">← Back to home</a>
       </div>
@@ -187,6 +178,7 @@
         <section class="registration-section" aria-labelledby="personal-heading">
           <div class="registration-section-heading"><span>02</span><div><h2 id="personal-heading">Your personal details</h2><p>Enter your details as they appear on your identity document.</p></div></div>
           <div class="registration-grid">
+            <div class="registration-field"><label for="reg-username">Username <span aria-hidden="true">*</span></label><input type="text" id="reg-username" name="username" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9._-]{3,30}" title="Use 3–30 letters, numbers, dots, underscores, or hyphens." required /></div>
             <div class="registration-field"><label for="reg-email">Email address <span aria-hidden="true">*</span></label><input type="email" id="reg-email" name="email" autocomplete="email" required /></div>
             <div class="registration-field"><label for="reg-email-confirm">Enter your email again <span aria-hidden="true">*</span></label><input type="email" id="reg-email-confirm" name="emailConfirm" autocomplete="email" required /></div>
             <div class="registration-field"><label for="reg-id-number">Identity number</label><input type="text" id="reg-id-number" name="identityNumber" inputmode="numeric" autocomplete="off" /></div>
@@ -202,9 +194,9 @@
         </section>
 
         <section class="registration-section" aria-labelledby="password-heading">
-          <div class="registration-section-heading"><span>03</span><div><h2 id="password-heading">Set up your password</h2><p>Use at least eight characters, including a capital letter and a number.</p></div></div>
+          <div class="registration-section-heading"><span>03</span><div><h2 id="password-heading">Set up your password</h2><p>Use at least eight characters.</p></div></div>
           <div class="registration-grid">
-            <div class="registration-field"><label for="reg-password">Password <span aria-hidden="true">*</span></label><input type="password" id="reg-password" name="password" autocomplete="new-password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9]).{8,}" required /></div>
+            <div class="registration-field"><label for="reg-password">Password <span aria-hidden="true">*</span></label><input type="password" id="reg-password" name="password" autocomplete="new-password" minlength="8" required /></div>
             <div class="registration-field"><label for="reg-confirm">Enter your password again <span aria-hidden="true">*</span></label><input type="password" id="reg-confirm" name="passwordConfirm" autocomplete="new-password" minlength="8" required /></div>
             <div class="registration-field"><label for="reg-recovery-question">Password retrieval question <span aria-hidden="true">*</span></label><select id="reg-recovery-question" name="recoveryQuestion" required><option value="">Choose a question</option><option>What was the name of your first school?</option><option>What is the name of the town where you were born?</option><option>What was the first concert you attended?</option><option>What is the name of your favourite teacher?</option></select></div>
             <div class="registration-field"><label for="reg-recovery-answer">Your answer <span aria-hidden="true">*</span></label><input type="text" id="reg-recovery-answer" name="recoveryAnswer" autocomplete="off" required /></div>

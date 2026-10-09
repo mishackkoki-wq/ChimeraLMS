@@ -1,8 +1,7 @@
 // ==================== CHIMERA LMS (Full-Stack Frontend) ====================
-// Connects to the JavaScript backend at http://localhost:5000
-// Falls back to offline mock data if backend is unavailable
+// Connects to the JavaScript backend at http://127.0.0.1:5000
 
-const API = "http://localhost:5000/api";
+const API = "http://127.0.0.1:5000/api";
 
 let currentUser = null;
 let currentPage = "dashboard";
@@ -148,6 +147,7 @@ if (registerForm) {
     const firstName = document.getElementById("reg-first-name").value.trim();
     const surname = document.getElementById("reg-surname").value.trim();
     const name = `${firstName} ${surname}`.trim();
+    const username = document.getElementById("reg-username").value.trim();
     const email = document.getElementById("reg-email").value.trim();
     const emailConfirm = document.getElementById("reg-email-confirm").value.trim();
     const password = document.getElementById("reg-password").value;
@@ -155,6 +155,11 @@ if (registerForm) {
     const identityNumber = document.getElementById("reg-id-number").value.trim();
     const passportNumber = document.getElementById("reg-passport").value.trim();
 
+    if (!/^[A-Za-z0-9._-]{3,30}$/.test(username)) {
+      showToast("Username must be 3–30 letters, numbers, dots, underscores, or hyphens");
+      document.getElementById("reg-username").focus();
+      return;
+    }
     if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
       showToast("Email addresses do not match");
       document.getElementById("reg-email-confirm").focus();
@@ -170,8 +175,8 @@ if (registerForm) {
       showToast("Passwords do not match");
       return;
     }
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-      showToast("Use at least 8 characters, including a capital letter and a number");
+    if (password.length < 8) {
+      showToast("Use a password with at least 8 characters");
       return;
     }
 
@@ -182,7 +187,7 @@ if (registerForm) {
       const data = await api("/auth/register", {
         method: "POST",
         body: JSON.stringify({
-          name, firstName, surname, email, emailConfirm, password, passwordConfirm: confirm,
+          name, firstName, surname, username, email, emailConfirm, password, passwordConfirm: confirm,
           course: document.getElementById("reg-course").value,
           identityNumber, passportNumber,
           dateOfBirth: document.getElementById("reg-dob").value,
@@ -336,37 +341,28 @@ modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) c
 
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const email = document.getElementById("email").value.trim();
+  const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
-  const role = document.getElementById("role").value;
+  const submitButton = loginForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
   try {
     const data = await api("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password, role })
+      body: JSON.stringify({ username, password })
     });
-    if (data && data.token) {
-      authToken = data.token;
-      currentUser = data.user;
-      localStorage.setItem("chimera_token", authToken);
-      currentPage = "dashboard";
-      await showApp();
-      showToast("Welcome, " + currentUser.name + "!");
-    } else {
-      const normalizedRole = ({ learner: "learner", facilitator: "lecturer", administrator: "admin" })[role.toLowerCase()] || role.toLowerCase();
-      currentUser = {
-        id: "offline",
-        name: normalizedRole === "admin" ? "Marcus Rivera" : normalizedRole === "lecturer" ? "Dr. Sarah Chen" : "Alex Johnson",
-        email: email || "demo@chimera.edu",
-        role: normalizedRole,
-        avatar: normalizedRole === "admin" ? "MR" : normalizedRole === "lecturer" ? "SC" : "AJ",
-        ...(normalizedRole === "learner" ? { selectedCourse: "Software Developer" } : {})
-      };
-      currentPage = "dashboard";
-      await showApp();
-      showToast("Running in offline demo mode");
+    if (!data || !data.token || !data.user) {
+      throw new Error("Unable to connect to the LMS. Please try again when the server is available.");
     }
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem("chimera_token", authToken);
+    currentPage = "dashboard";
+    await showApp();
+    showToast("Welcome, " + currentUser.name + "!");
   } catch (err) {
     showToast(err.message || "Login failed");
+  } finally {
+    submitButton.disabled = false;
   }
 });
 

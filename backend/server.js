@@ -6,7 +6,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const PORT = Number(process.env.PORT || 5000);
-const HOST = process.env.HOST || "localhost";
+const HOST = process.env.HOST || "127.0.0.1";
 const DATA_FILE = path.join(__dirname, "data.json");
 const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
 const PROGRAMMES = JSON.parse(fs.readFileSync(PROGRAMMES_FILE, "utf8"));
@@ -15,12 +15,7 @@ const TOKEN_TTL_SECONDS = 60 * 60 * 12;
 
 function initialData() {
   return {
-    users: [
-      { id: "u1", name: "Alex Johnson", email: "alex.j@student.edu", role: "learner", avatar: "AJ", status: "Active", demo: true },
-      { id: "u2", name: "Dr. Sarah Chen", email: "s.chen@faculty.edu", role: "lecturer", avatar: "SC", status: "Active", demo: true },
-      { id: "u3", name: "Marcus Rivera", email: "m.rivera@admin.edu", role: "admin", avatar: "MR", status: "Active", demo: true },
-      { id: "u4", name: "Priya Patel", email: "p.patel@student.edu", role: "learner", avatar: "PP", status: "Active", demo: true }
-    ],
+    users: [],
     courses: PROGRAMMES,
     assignments: [],
     enrollments: [],
@@ -83,8 +78,8 @@ function verifyToken(token) {
 }
 
 function publicUser(user) {
-  const { id, name, email, role, avatar, status, lastLogin, selectedCourse } = user;
-  return { id, name, email, role, avatar, status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
+  const { id, name, username, email, role, avatar, status, lastLogin, selectedCourse } = user;
+  return { id, name, ...(username ? { username } : {}), email, role, avatar, status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
 }
 
 function profileUser(user) {
@@ -123,16 +118,12 @@ function readBody(request, maxBytes = 1024 * 1024) {
   });
 }
 
-function normalizeRole(role) {
-  const key = String(role || "learner").toLowerCase();
-  if (["admin", "administrator"].includes(key)) return "admin";
-  if (["lecturer", "facilitator", "instructor"].includes(key)) return "lecturer";
-  if (key === "guest") return "guest";
-  return "learner";
-}
-
 function courseNameKey(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function loginKey(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function isDateKey(value) {
@@ -176,17 +167,20 @@ async function handle(request, response) {
 
   if (request.method === "POST" && route === "/api/auth/login") {
     const body = await readBody(request);
-    const email = String(body.email || "").trim().toLowerCase();
-    const role = normalizeRole(body.role);
-    const account = data.users.find(item => item.email.toLowerCase() === email && item.role === role);
-    if (!account) return send(response, 401, { error: "No account was found for that email and role" });
-    if (!account.demo) {
-      const supplied = hashPassword(String(body.password || ""), account.passwordSalt).hash;
-      const suppliedBuffer = Buffer.from(supplied, "hex");
-      const storedBuffer = Buffer.from(account.passwordHash || "", "hex");
-      if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
-        return send(response, 401, { error: "Incorrect email or password" });
-      }
+    const username = loginKey(body.username || body.email);
+    const account = data.users.find(item =>
+      loginKey(item.email) === username ||
+      (item.username && loginKey(item.username) === username) ||
+      (!item.username && loginKey(item.name) === username)
+    );
+    if (!account || account.demo || !account.passwordSalt || !account.passwordHash) {
+      return send(response, 401, { error: "No registered account was found for that username or email" });
+    }
+    const supplied = hashPassword(String(body.password || ""), account.passwordSalt).hash;
+    const suppliedBuffer = Buffer.from(supplied, "hex");
+    const storedBuffer = Buffer.from(account.passwordHash, "hex");
+    if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
+      return send(response, 401, { error: "Incorrect username/email or password" });
     }
     account.lastLogin = new Date().toISOString();
     saveData(data);
@@ -195,13 +189,20 @@ async function handle(request, response) {
 
   if (request.method === "POST" && route === "/api/auth/register") {
     const body = await readBody(request);
+    const username = String(body.username || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
+    if (!/^[A-Za-z0-9._-]{3,30}$/.test(username)) return send(response, 400, { error: "Username must be 3–30 letters, numbers, dots, underscores, or hyphens" });
     if (!email || !String(body.name || "").trim()) return send(response, 400, { error: "Name and email are required" });
     if (String(body.emailConfirm || "").trim().toLowerCase() !== email) return send(response, 400, { error: "Email addresses do not match" });
     if (data.users.some(item => item.email.toLowerCase() === email)) return send(response, 409, { error: "An account with this email already exists" });
+    if (data.users.some(item =>
+      loginKey(item.username) === loginKey(username) ||
+      loginKey(item.email) === loginKey(username) ||
+      (!item.username && loginKey(item.name) === loginKey(username))
+    )) return send(response, 409, { error: "That username is already in use" });
     if (password !== String(body.passwordConfirm || "")) return send(response, 400, { error: "Passwords do not match" });
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) return send(response, 400, { error: "Password must have at least 8 characters, one capital letter, and one number" });
+    if (password.length < 8) return send(response, 400, { error: "Password must have at least 8 characters" });
     if (!body.identityNumber && !body.passportNumber) return send(response, 400, { error: "An identity or passport number is required" });
     if (!body.agreement) return send(response, 400, { error: "Please accept the registration agreement" });
     const selectedProgramme = data.courses.find(course => courseNameKey(course.title) === courseNameKey(body.course));
@@ -209,7 +210,7 @@ async function handle(request, response) {
 
     const { salt, hash } = hashPassword(password);
     const learner = {
-      id: crypto.randomUUID(), name: String(body.name).trim(), email, role: "learner", avatar: String(body.name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase(),
+      id: crypto.randomUUID(), name: String(body.name).trim(), username, email, role: "learner", avatar: String(body.name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase(),
       status: "Active", passwordSalt: salt, passwordHash: hash,
       identityNumber: body.identityNumber || "", passportNumber: body.passportNumber || "", dateOfBirth: body.dateOfBirth || "", gender: body.gender || "", phone: body.phone || "", lastSchool: body.lastSchool || "", recoveryQuestion: body.recoveryQuestion || "",
       recoveryAnswerHash: crypto.createHash("sha256").update(String(body.recoveryAnswer || "").trim().toLowerCase()).digest("hex"), selectedCourse: selectedProgramme.title
@@ -449,7 +450,6 @@ const server = http.createServer((request, response) => {
 server.listen(PORT, HOST, () => {
   loadData();
   console.log(`Chimera LMS JavaScript API listening on http://${HOST}:${PORT}`);
-  console.log("Demo learner: alex.j@student.edu (any password)");
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
