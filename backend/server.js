@@ -26,7 +26,10 @@ const MIME_TYPES = {
 
 function initialData() {
   return {
-    users: [],
+    users: [
+      { id: "staff-lecturer", name: "Dr. Sarah Chen", email: "s.chen@faculty.edu", role: "lecturer", avatar: "SC", status: "Active", demo: true },
+      { id: "staff-admin", name: "Marcus Rivera", email: "m.rivera@admin.edu", role: "admin", avatar: "MR", status: "Active", demo: true }
+    ],
     courses: PROGRAMMES,
     assignments: [],
     enrollments: [],
@@ -89,8 +92,8 @@ function verifyToken(token) {
 }
 
 function publicUser(user) {
-  const { id, name, username, email, role, avatar, status, lastLogin, selectedCourse } = user;
-  return { id, name, ...(username ? { username } : {}), email, role, avatar, status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
+  const { id, name, username, email, role, avatar, profileImage, moduleProgress, status, lastLogin, selectedCourse } = user;
+  return { id, name, ...(username ? { username } : {}), email, role, avatar, ...(profileImage ? { profileImage } : {}), ...(moduleProgress ? { moduleProgress } : {}), status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
 }
 
 function profileUser(user) {
@@ -251,20 +254,35 @@ async function handle(request, response) {
       (item.username && loginKey(item.username) === username) ||
       (!item.username && loginKey(item.name) === username)
     );
-    if (!account || account.demo || !account.passwordSalt || !account.passwordHash) {
+    const isStaffBootstrap = Boolean(account && account.demo && ["admin", "lecturer"].includes(account.role));
+    if (!account || (account.demo && !isStaffBootstrap) || (!isStaffBootstrap && (!account.passwordSalt || !account.passwordHash))) {
       return send(response, 401, { error: "No registered account was found for that username or email" });
     }
     if (requestedRole && account.role !== requestedRole) {
       return send(response, 401, { error: "The selected account type does not match this account" });
     }
-    const supplied = hashPassword(String(body.password || ""), account.passwordSalt).hash;
-    const suppliedBuffer = Buffer.from(supplied, "hex");
-    const storedBuffer = Buffer.from(account.passwordHash, "hex");
-    if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
-      return send(response, 401, { error: "Incorrect username/email or password" });
+    const password = String(body.password || "");
+    if (isStaffBootstrap) {
+      const defaultPassword = account.role === "admin"
+        ? (process.env.CHIMERA_ADMIN_PASSWORD || "Admin123!")
+        : (process.env.CHIMERA_LECTURER_PASSWORD || "Lecturer123!");
+      if (password !== defaultPassword) return send(response, 401, { error: "Incorrect username/email or password" });
+    } else {
+      const supplied = hashPassword(password, account.passwordSalt).hash;
+      const suppliedBuffer = Buffer.from(supplied, "hex");
+      const storedBuffer = Buffer.from(account.passwordHash, "hex");
+      if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
+        return send(response, 401, { error: "Incorrect username/email or password" });
+      }
     }
     if (account.status === "Inactive") {
       return send(response, 403, { error: "This account is inactive. Contact an administrator." });
+    }
+    if (isStaffBootstrap) {
+      const { salt, hash } = hashPassword(password);
+      account.passwordSalt = salt;
+      account.passwordHash = hash;
+      delete account.demo;
     }
     account.lastLogin = new Date().toISOString();
     saveData(data);
@@ -296,7 +314,7 @@ async function handle(request, response) {
     const learner = {
       id: crypto.randomUUID(), name: String(body.name).trim(), username, email, role: "learner", avatar: String(body.name).trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase(),
       status: "Active", passwordSalt: salt, passwordHash: hash,
-      identityNumber: body.identityNumber || "", passportNumber: body.passportNumber || "", dateOfBirth: body.dateOfBirth || "", gender: body.gender || "", phone: body.phone || "", lastSchool: body.lastSchool || "", recoveryQuestion: body.recoveryQuestion || "",
+      identityNumber: body.identityNumber || "", passportNumber: body.passportNumber || "", dateOfBirth: body.dateOfBirth || "", gender: body.gender || "", phone: body.phone || "", lastSchool: body.lastSchool || "", recoveryQuestion: body.recoveryQuestion || "", moduleProgress: {},
       recoveryAnswerHash: crypto.createHash("sha256").update(String(body.recoveryAnswer || "").trim().toLowerCase()).digest("hex"), selectedCourse: selectedProgramme.title
     };
     data.users.push(learner);
@@ -306,13 +324,28 @@ async function handle(request, response) {
     return send(response, 201, { token: makeToken(learner), user: publicUser(learner) });
   }
 
+  if (request.method === "POST" && route === "/api/auth/recover") {
+    const body = await readBody(request);
+    const email = loginKey(body.email);
+    const answerHash = crypto.createHash("sha256").update(String(body.recoveryAnswer || "").trim().toLowerCase()).digest("hex");
+    const password = String(body.password || "");
+    if (password.length < 8) return send(response, 400, { error: "Password must have at least 8 characters" });
+    const account = data.users.find(item => loginKey(item.email) === email && item.recoveryAnswerHash && item.recoveryAnswerHash === answerHash);
+    if (!account) return send(response, 400, { error: "Email or recovery answer could not be verified" });
+    const { salt, hash } = hashPassword(password);
+    account.passwordSalt = salt;
+    account.passwordHash = hash;
+    saveData(data);
+    return send(response, 200, { status: "ok" });
+  }
+
   if (!user) return send(response, 401, { error: "Unauthorized" });
   if (request.method === "GET" && route === "/api/me") {
     const account = data.users.find(item => item.id === user.id);
     return send(response, 200, profileUser(account));
   }
   if (request.method === "PATCH" && route === "/api/me") {
-    const body = await readBody(request);
+    const body = await readBody(request, 4 * 1024 * 1024);
     const account = data.users.find(item => item.id === user.id);
     const editableFields = ["name", "email", "identityNumber", "passportNumber", "dateOfBirth", "gender", "phone", "lastSchool"];
     for (const key of editableFields) {
@@ -322,6 +355,13 @@ async function handle(request, response) {
     if (!account.name || !account.email) return send(response, 400, { error: "Name and email are required" });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account.email)) return send(response, 400, { error: "Enter a valid email address" });
     if (data.users.some(item => item.id !== account.id && item.email.toLowerCase() === account.email)) return send(response, 409, { error: "That email address is already in use" });
+    if (Object.hasOwn(body, "profileImage")) {
+      const image = String(body.profileImage || "");
+      if (image && (!/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(image) || Buffer.byteLength(image, "utf8") > 2_800_000)) {
+        return send(response, 400, { error: "Profile pictures must be PNG, JPG, GIF, or WebP and smaller than 2 MB" });
+      }
+      account.profileImage = image;
+    }
     account.avatar = account.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
     saveData(data);
     return send(response, 200, profileUser(account));
@@ -332,7 +372,11 @@ async function handle(request, response) {
     if (user.role === "learner") {
       const learner = data.users.find(item => item.id === user.id);
       const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
-      courses = registeredProgramme ? courses.filter(course => courseNameKey(course.title) === registeredProgramme) : [];
+      const registeredCourseIds = new Set(data.enrollments.filter(enrollment => enrollment.userId === user.id).map(enrollment => enrollment.courseId));
+      data.courses.forEach(course => {
+        if (registeredProgramme && courseNameKey(course.title) === registeredProgramme) registeredCourseIds.add(course.id);
+      });
+      courses = courses.filter(course => registeredCourseIds.has(course.id));
     } else if (user.role === "lecturer") {
       courses = courses.filter(course => course.instructorId === user.id || course.instructor === user.name);
     }
@@ -356,6 +400,30 @@ async function handle(request, response) {
       return { ...assignment, status: submitted ? "completed" : assignment.status };
     });
     return send(response, 200, visibleAssignments);
+  }
+
+  if (request.method === "PATCH" && route === "/api/modules/progress") {
+    if (!requireRole(user, ["learner"])) return send(response, 403, { error: "Only learners can update module progress" });
+    const body = await readBody(request);
+    const course = data.courses.find(item => item.id === String(body.courseId || ""));
+    const account = data.users.find(item => item.id === user.id);
+    const enrolled = course && (
+      data.enrollments.some(enrollment => enrollment.userId === user.id && enrollment.courseId === course.id) ||
+      courseNameKey(account && account.selectedCourse) === courseNameKey(course.title)
+    );
+    if (!enrolled) return send(response, 403, { error: "You are not enrolled in this course" });
+    const group = String(body.group || "");
+    const index = Number(body.moduleIndex);
+    if (!Array.isArray(course.modules && course.modules[group]) || !Number.isInteger(index) || index < 0 || index >= course.modules[group].length || typeof body.completed !== "boolean") {
+      return send(response, 400, { error: "Choose a valid programme module" });
+    }
+    if (!account.moduleProgress || typeof account.moduleProgress !== "object" || Array.isArray(account.moduleProgress)) account.moduleProgress = {};
+    if (!account.moduleProgress[course.id] || typeof account.moduleProgress[course.id] !== "object") account.moduleProgress[course.id] = {};
+    if (!account.moduleProgress[course.id][group] || typeof account.moduleProgress[course.id][group] !== "object") account.moduleProgress[course.id][group] = {};
+    if (body.completed) account.moduleProgress[course.id][group][index] = true;
+    else delete account.moduleProgress[course.id][group][index];
+    saveData(data);
+    return send(response, 200, { moduleProgress: account.moduleProgress });
   }
 
   if (route === "/api/attendance" && request.method === "GET") {

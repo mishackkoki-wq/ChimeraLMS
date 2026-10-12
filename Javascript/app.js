@@ -1,7 +1,13 @@
 // ==================== CHIMERA LMS (Full-Stack Frontend) ====================
 // The Node server hosts both the frontend and API; file:// previews use the local API.
 
-const API = `${location.protocol === "file:" ? "http://127.0.0.1:5000" : location.origin}/api`;
+// The API is hosted by Node on port 5000. When the frontend is opened through
+// the optional Python preview server (for example, port 8080), use Node's API
+// origin instead of sending API calls to the static file server.
+const API_ORIGIN = location.protocol === "file:" || location.port !== "5000"
+  ? "http://127.0.0.1:5000"
+  : location.origin;
+const API = `${API_ORIGIN}/api`;
 
 let currentUser = null;
 let currentPage = "dashboard";
@@ -26,8 +32,7 @@ const contentArea = document.getElementById("content-area");
 const pageTitle = document.getElementById("page-title");
 const roleBadge = document.getElementById("role-badge");
 const roleProfileButton = document.getElementById("role-profile-button");
-const themeToggle = document.getElementById("theme-toggle");
-const themeIcon = document.getElementById("theme-icon");
+const notificationsButton = document.getElementById("notifications-button");
 const modalOverlay = document.getElementById("modal-overlay");
 const modalTitle = document.getElementById("modal-title");
 const modalBody = document.getElementById("modal-body");
@@ -262,6 +267,7 @@ const navItems = {
     { id: "dashboard", label: "System Dashboard", icon: "🖥️" },
     { id: "users", label: "User Management", icon: "👥" },
     { id: "courses", label: "All Courses", icon: "📚" },
+    { id: "attendance", label: "Attendance", icon: "◷" },
     { id: "reports", label: "Analytics & Reports", icon: "📊" },
     { id: "security", label: "Security & Logs", icon: "🔒" },
     { id: "settings", label: "System Settings", icon: "⚙️" }
@@ -274,18 +280,32 @@ const navItems = {
 
 function initTheme() {
   const savedTheme = localStorage.getItem("chimera-theme");
-  if (savedTheme !== "dark") {
-    document.body.classList.add("light");
-    themeIcon.textContent = "🌙";
-  } else {
-    themeIcon.textContent = "☀️";
-  }
+  document.body.classList.toggle("light", savedTheme !== "dark");
 }
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("light");
-  const isLight = document.body.classList.contains("light");
-  themeIcon.textContent = isLight ? "🌙" : "☀️";
-  localStorage.setItem("chimera-theme", isLight ? "light" : "dark");
+notificationsButton.addEventListener("click", () => {
+  if (currentUser?.role === "learner") {
+    if (currentPage !== "dashboard") { currentPage = "dashboard"; renderPage(); }
+    document.getElementById("learner-notifications")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  } else if (currentUser?.role === "admin") {
+    showToast("You’re all caught up.");
+  } else {
+    showToast("Notifications are available in the learner dashboard.");
+  }
+});
+document.getElementById("messages-button").addEventListener("click", () => showToast("You have no new messages."));
+
+document.getElementById("global-search").addEventListener("submit", event => {
+  event.preventDefault();
+  const query = document.getElementById("global-search-input").value.trim().toLowerCase();
+  if (!query) return;
+  const destination = (navItems[currentUser?.role] || []).find(item => item.label.toLowerCase().includes(query));
+  if (!destination) {
+    showToast("No matching dashboard section found.");
+    return;
+  }
+  currentPage = destination.id;
+  renderNav();
+  renderPage();
 });
 
 function closeMobileSidebar() {
@@ -338,6 +358,36 @@ function closeModal() {
 }
 modalClose.addEventListener("click", closeModal);
 modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) closeModal(); });
+
+document.getElementById("forgot-password-link").addEventListener("click", event => {
+  event.preventDefault();
+  const knownEmail = document.getElementById("username").value.trim();
+  openModal("Reset your password", `
+    <p class="profile-intro">Enter the email and recovery answer you used when registering.</p>
+    <form id="password-recovery-form" class="profile-form">
+      <label class="profile-field"><span>Email address</span><input class="form-control" type="email" name="email" autocomplete="email" required value="${escapeHTML(knownEmail.includes("@") ? knownEmail : "")}" /></label>
+      <label class="profile-field"><span>Recovery answer</span><input class="form-control" type="text" name="recoveryAnswer" autocomplete="off" required /></label>
+      <label class="profile-field"><span>New password</span><input class="form-control" type="password" name="password" minlength="8" autocomplete="new-password" required /></label>
+    </form>`,
+    '<button class="btn btn-ghost" id="recovery-cancel" type="button">Cancel</button><button class="btn btn-primary" id="recovery-submit" type="submit" form="password-recovery-form">Update password</button>'
+  );
+  document.getElementById("recovery-cancel").onclick = closeModal;
+  document.getElementById("password-recovery-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = document.getElementById("recovery-submit");
+    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    button.disabled = true;
+    try {
+      const result = await api("/auth/recover", { method: "POST", body: JSON.stringify(values) });
+      if (!result) throw new Error("Unable to connect to the LMS. Please try again when the server is available.");
+      closeModal();
+      showToast("Password updated. You can now sign in.");
+    } catch (error) {
+      showToast(error.message || "Could not reset your password");
+      button.disabled = false;
+    }
+  });
+});
 
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -396,6 +446,7 @@ async function openLearnerProfile() {
   openModal("Student Profile", `
     <p class="profile-intro">View and update the personal information linked to your Chimera LMS account.</p>
     <form id="student-profile-form" class="profile-form">
+      <label class="profile-field profile-picture-field"><span>Profile picture</span><input class="form-control" type="file" name="profilePicture" accept="image/png,image/jpeg,image/gif,image/webp" /><small>PNG, JPG, GIF, or WebP. Maximum 2 MB.</small></label>
       <div class="profile-form-grid">
         ${field("Full name", "name", profile.name, "text", "name")}
         ${field("Email address", "email", profile.email, "email", "email")}
@@ -414,15 +465,29 @@ async function openLearnerProfile() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const updates = Object.fromEntries(formData.entries());
+    const picture = formData.get("profilePicture");
+    delete updates.profilePicture;
     const saveButton = document.getElementById("profile-save");
     saveButton.disabled = true;
     try {
+      if (picture && picture.size) {
+        if (!picture.type.match(/^image\/(png|jpeg|gif|webp)$/) || picture.size > 2 * 1024 * 1024) {
+          throw new Error("Choose a PNG, JPG, GIF, or WebP image smaller than 2 MB");
+        }
+        updates.profileImage = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Could not read that image"));
+          reader.readAsDataURL(picture);
+        });
+      }
       const savedProfile = await api("/me", { method: "PATCH", body: JSON.stringify(updates) });
+      if (!savedProfile) throw new Error("Unable to connect to the LMS. Please try again when the server is available.");
       currentUser = { ...currentUser, ...updates, ...(savedProfile || {}) };
       currentUser.avatar = currentUser.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
       document.getElementById("user-name").textContent = currentUser.name;
-      document.getElementById("user-avatar").textContent = currentUser.avatar;
-      document.getElementById("profile-avatar-mini").textContent = currentUser.avatar;
+      updateAvatar(document.getElementById("user-avatar"), currentUser);
+      updateHeaderProfile(displayRoleName(currentUser.role), currentUser);
       closeModal();
       showToast("Profile updated successfully");
       if (currentPage === "dashboard") renderPage();
@@ -431,6 +496,43 @@ async function openLearnerProfile() {
       saveButton.disabled = false;
     }
   });
+}
+
+function updateAvatar(element, user) {
+  if (!element) return;
+  element.replaceChildren();
+  if (user.profileImage) {
+    const image = document.createElement("img");
+    image.src = user.profileImage;
+    image.alt = "";
+    element.appendChild(image);
+  } else {
+    element.textContent = user.avatar || (user.name || "U").slice(0, 2).toUpperCase();
+  }
+}
+
+function displayRoleName(role) {
+  return role === "lecturer" ? "Facilitator" : role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function updateHeaderProfile(roleName, user) {
+  const avatar = document.getElementById("profile-avatar-mini");
+  const label = document.getElementById("role-badge");
+  if (user.role === "learner" && user.profileImage) {
+    avatar.hidden = true;
+    label.replaceChildren();
+    const image = document.createElement("img");
+    image.className = "role-profile-image";
+    image.src = user.profileImage;
+    image.alt = `${user.name || "Learner"} profile picture`;
+    label.appendChild(image);
+    label.setAttribute("aria-label", "Learner profile picture");
+  } else {
+    avatar.hidden = false;
+    updateAvatar(avatar, user);
+    label.textContent = roleName;
+    label.removeAttribute("aria-label");
+  }
 }
 
 async function showApp(historyMode = "replace") {
@@ -443,11 +545,11 @@ async function showApp(historyMode = "replace") {
     appScreen.classList.add("active");
   }
   document.getElementById("user-name").textContent = currentUser.name;
-  const displayRole = currentUser.role === "lecturer" ? "Facilitator" : currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  appScreen.dataset.role = currentUser.role;
+  const displayRole = displayRoleName(currentUser.role);
   document.getElementById("user-role").textContent = displayRole;
-  document.getElementById("user-avatar").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
-  roleBadge.textContent = displayRole;
-  document.getElementById("profile-avatar-mini").textContent = currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase();
+  updateAvatar(document.getElementById("user-avatar"), currentUser);
+  updateHeaderProfile(displayRole, currentUser);
   await loadData();
   renderNav();
   renderPage();
@@ -560,6 +662,7 @@ function renderPage() {
     security: "Security & Audit Logs", settings: "System Settings"
   };
   pageTitle.textContent = currentPage === "dashboard" && currentUser.role === "learner" ? "Dashboard Home" : (titles[currentPage] || "Dashboard");
+  appScreen.dataset.page = currentPage;
   const role = currentUser.role;
   const map = {
     dashboard: () => renderDashboard(role),
@@ -584,11 +687,43 @@ function renderPage() {
 }
 
 function attachPageListeners() {
+  document.querySelectorAll("[data-admin-toast]").forEach(button => button.addEventListener("click", () => showToast(button.dataset.adminToast)));
+  document.querySelectorAll("[data-admin-page]").forEach(button => button.addEventListener("click", event => {
+    event.preventDefault();
+    currentPage = button.dataset.adminPage;
+    renderNav();
+    renderPage();
+  }));
   const editLearnerProfile = document.getElementById("edit-learner-profile");
   if (editLearnerProfile) editLearnerProfile.addEventListener("click", openLearnerProfile);
   document.querySelectorAll("[data-submit-id]").forEach(btn => {
     btn.addEventListener("click", () => openSubmitModal(btn.dataset.submitId));
   });
+  document.querySelectorAll("[data-module-toggle]").forEach(button => button.addEventListener("click", async () => {
+    const courseId = button.dataset.courseId;
+    const group = button.dataset.moduleGroup;
+    const moduleIndex = Number(button.dataset.moduleIndex);
+    const wasCompleted = currentUser.moduleProgress?.[courseId]?.[group]?.[moduleIndex] === true;
+    const completed = !wasCompleted;
+    button.disabled = true;
+    setModuleCompletion(courseId, group, moduleIndex, completed);
+    syncProgrammeModuleUI(courseId);
+    try {
+      const result = await api("/modules/progress", {
+        method: "PATCH",
+        body: JSON.stringify({ courseId, group, moduleIndex, completed })
+      });
+      if (!result) throw new Error("Could not save module progress. Check your server connection.");
+      currentUser.moduleProgress = result.moduleProgress;
+      syncProgrammeModuleUI(courseId);
+    } catch (error) {
+      setModuleCompletion(courseId, group, moduleIndex, wasCompleted);
+      syncProgrammeModuleUI(courseId);
+      showToast(error.message || "Could not save module progress");
+    } finally {
+      button.disabled = false;
+    }
+  }));
   const createBtn = document.getElementById("create-assessment-btn");
   if (createBtn) createBtn.addEventListener("click", openCreateAssessmentModal);
   const uploadBtn = document.getElementById("upload-materials-btn");
@@ -803,6 +938,57 @@ function learnerActiveCourses() {
   return cachedCourses.filter(course => course.status !== "completed");
 }
 
+function courseModuleStats(course) {
+  const groups = Object.entries(course.modules || {});
+  let total = 0;
+  let completed = 0;
+  groups.forEach(([group, modules]) => {
+    total += modules.length;
+    modules.forEach((_, index) => {
+      if (currentUser?.moduleProgress?.[course.id]?.[group]?.[index] === true) completed++;
+    });
+  });
+  return { total, completed, percent: total ? Math.round(completed / total * 100) : Math.max(0, Math.min(100, Number(course.progress) || 0)) };
+}
+
+function setModuleCompletion(courseId, group, moduleIndex, completed) {
+  if (!currentUser.moduleProgress || typeof currentUser.moduleProgress !== "object") currentUser.moduleProgress = {};
+  if (!currentUser.moduleProgress[courseId]) currentUser.moduleProgress[courseId] = {};
+  if (!currentUser.moduleProgress[courseId][group]) currentUser.moduleProgress[courseId][group] = {};
+  if (completed) currentUser.moduleProgress[courseId][group][moduleIndex] = true;
+  else delete currentUser.moduleProgress[courseId][group][moduleIndex];
+}
+
+function syncProgrammeModuleUI(courseId) {
+  const course = cachedCourses.find(item => item.id === courseId);
+  if (!course) return;
+  const stats = courseModuleStats(course);
+  document.querySelectorAll(".student-course-card, .registered-programme-card").forEach(card => {
+    if (card.dataset.courseCardId !== courseId) return;
+    const track = card.querySelector(".student-progress-track span");
+    const progressLabel = card.querySelector(".student-course-progress small");
+    if (track) track.style.width = `${stats.percent}%`;
+    if (progressLabel) progressLabel.textContent = stats.total ? `${stats.percent}% complete · ${stats.completed}/${stats.total} modules` : `${stats.percent}% complete`;
+    const moduleSummary = card.querySelector(".programme-module-completion");
+    if (moduleSummary) moduleSummary.textContent = `${stats.completed}/${stats.total} complete`;
+    card.querySelectorAll("[data-module-toggle]").forEach(button => {
+      const isCompleted = currentUser.moduleProgress?.[courseId]?.[button.dataset.moduleGroup]?.[button.dataset.moduleIndex] === true;
+      button.dataset.completed = String(isCompleted);
+      button.setAttribute("aria-pressed", String(isCompleted));
+      button.classList.toggle("is-completed", isCompleted);
+      button.querySelector(".module-check").textContent = isCompleted ? "✓" : "";
+    });
+  });
+  const activeCourses = learnerActiveCourses();
+  if (activeCourses.length) {
+    const overall = Math.round(activeCourses.reduce((sum, item) => sum + courseModuleStats(item).percent, 0) / activeCourses.length);
+    const ring = document.getElementById("learner-overall-progress");
+    const value = document.getElementById("learner-overall-progress-value");
+    if (ring) ring.style.setProperty("--progress-value", overall);
+    if (value) value.textContent = `${overall}%`;
+  }
+}
+
 function learnerUpcomingAssignments() {
   const todayKey = localDateKey(new Date());
   return cachedAssignments
@@ -873,13 +1059,15 @@ function renderLearnerDashboard() {
   const upcoming = learnerUpcomingAssignments();
   const todayKey = localDateKey(new Date());
   const overdue = cachedAssignments.filter(assignment => assignment.status !== "completed" && assignmentDueKey(assignment) && assignmentDueKey(assignment) < todayKey);
-  const progress = courses.length ? Math.round(courses.reduce((sum, course) => sum + Math.max(0, Math.min(100, Number(course.progress) || 0)), 0) / courses.length) : 0;
+  const progress = courses.length ? Math.round(courses.reduce((sum, course) => sum + courseModuleStats(course).percent, 0) / courses.length) : 0;
   const firstName = escapeHTML((currentUser.name || "Learner").trim().split(/\s+/)[0]);
+  const dashboardAvatar = currentUser.profileImage
+    ? `<img class="dashboard-profile-picture" src="${escapeHTML(currentUser.profileImage)}" alt="${escapeHTML(currentUser.name || "Learner")} profile picture" />`
+    : `<div class="dashboard-profile-picture dashboard-profile-initials" aria-label="${escapeHTML(currentUser.name || "Learner")} profile">${escapeHTML(currentUser.avatar || (currentUser.name || "L").slice(0, 2).toUpperCase())}</div>`;
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-  const courseCards = courses.length ? courses.slice(0, 4).map(course => {
-    const courseProgress = Math.max(0, Math.min(100, Number(course.progress) || 0));
-    const moduleCount = Object.values(course.modules || {}).reduce((total, modules) => total + modules.length, 0);
-    return `<article class="student-course-card"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseProgress}%"></span></div><small>${courseProgress}% complete</small></div>${renderProgrammeModules(course, false, `View programme modules · ${moduleCount}`)}</article>`;
+  const courseCards = courses.length ? courses.map(course => {
+    const courseStats = courseModuleStats(course);
+    return `<article class="student-course-card" data-course-card-id="${escapeHTML(course.id)}"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseStats.percent}%"></span></div><small>${courseStats.percent}% complete${courseStats.total ? ` · ${courseStats.completed}/${courseStats.total} modules` : ""}</small></div>${renderProgrammeModules(course, false, "Programme modules")}</article>`;
   }).join("") : '<div class="student-empty-state">No registered programme is linked to this learner account yet. Once a programme is registered, its course and modules will appear here.</div>';
   const assignmentRows = upcoming.length ? upcoming.slice(0, 4).map(assignment => {
     const dueKey = assignmentDueKey(assignment);
@@ -894,9 +1082,9 @@ function renderLearnerDashboard() {
   const notificationMarkup = notifications.length ? notifications.slice(0, 4).join("") : '<li class="student-empty-state">No new notifications. You’re up to date.</li>';
 
   return `<div class="student-dashboard">
-    <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><img class="welcome-banner-image" src="assets/chimera-welcome-banner.png" alt="Chimera Holdings" /></section>
-    <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" style="--progress-value:${progress}"><span>${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
-    <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section></aside></div>
+    <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><div class="student-welcome-visual">${dashboardAvatar}<img class="welcome-banner-image" src="assets/chimera-welcome-banner.png" alt="Chimera Holdings" /></div></section>
+    <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" id="learner-overall-progress" style="--progress-value:${progress}"><span id="learner-overall-progress-value">${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
+    <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section id="learner-notifications" class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section></aside></div>
   </div>`;
 }
 
@@ -918,19 +1106,34 @@ function renderDashboard(role) {
       ).join("") + '</div></div>';
   }
   if (role === "admin") {
-    return '<div class="stats-grid">' +
-      '<div class="stat-card"><div class="label">Total Users</div><div class="value">' + (cachedUsers.length||5) + '</div></div>' +
-      '<div class="stat-card"><div class="label">Active Courses</div><div class="value">' + cachedCourses.length + '</div></div>' +
-      '<div class="stat-card"><div class="label">System Health</div><div class="value" style="color:var(--success)">99.8%</div></div>' +
-      '<div class="stat-card"><div class="label">API</div><div class="value" style="font-size:1.1rem">JWT + JSON</div></div></div>' +
-      '<div class="card"><h3>System Overview</h3><div class="table-wrap"><table>' +
-      '<thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead><tbody>' +
-      '<tr><td>Backend</td><td>Node.js HTTP Server</td><td><span class="status completed">Running</span></td></tr>' +
-      '<tr><td>Auth</td><td>JWT HS256</td><td><span class="status completed">Active</span></td></tr>' +
-      '<tr><td>Storage</td><td>data.json</td><td><span class="status completed">OK</span></td></tr>' +
-      '</tbody></table></div></div>';
+    return renderAdminDashboard();
   }
   return '<div class="card"><h3>Welcome to Chimera LMS</h3><p style="color:var(--text-muted)">Limited public view. Sign in for full access.</p></div>';
+}
+
+function renderAdminDashboard() {
+  const users = cachedUsers || [];
+  const learners = users.filter(user => user.role === "learner");
+  const activeUsers = users.filter(user => user.status !== "Inactive");
+  const lecturers = users.filter(user => user.role === "lecturer");
+  const recentLearners = [...learners].sort((a, b) => String(b.lastLogin || "").localeCompare(String(a.lastLogin || ""))).slice(0, 5);
+  const learnerRows = recentLearners.length ? recentLearners.map(user => {
+    const initials = String(user.name || "L").trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+    return `<li class="admin-learner-row"><span class="admin-list-avatar">${escapeHTML(initials)}</span><span class="admin-learner-copy"><strong>${escapeHTML(user.name || "Learner")}</strong><small>${escapeHTML(user.email || "")}</small></span><span class="admin-status ${user.status === "Inactive" ? "is-inactive" : ""}">${escapeHTML(user.status || "Active")}</span></li>`;
+  }).join("") : '<li class="admin-empty-row">No learner accounts yet.</li>';
+  const courseRows = cachedCourses.slice(0, 4).map(course => `<li class="admin-course-row"><span class="admin-course-mark">${escapeHTML(course.code || "C")}</span><span><strong>${escapeHTML(course.title || "Course")}</strong><small>${escapeHTML(course.instructor || "Chimera Learning")}</small></span><span>${Number(course.students) || 0} learners</span></li>`).join("");
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  return `<div class="admin-dashboard">
+    <div class="admin-dashboard-heading"><div><p class="admin-breadcrumb"><span>Home</span><span aria-hidden="true">›</span><strong>Dashboard</strong></p><h1>Admin Dashboard</h1><p>${today} <span>·</span> Here’s what’s happening across Chimera LMS.</p></div><div class="admin-heading-actions"><button type="button" data-admin-toast="You’re all caught up.">Notifications <b>0</b></button><button type="button" data-admin-page="reports">Events <b>${cachedAssignments.length}</b></button><button type="button" data-admin-page="attendance">Attendance <b>View</b></button></div></div>
+    <section class="admin-welcome-card"><div><span class="admin-eyebrow">CHIMERA LMS · ADMINISTRATION</span><h2>Welcome back, ${escapeHTML((currentUser.name || "Administrator").split(/\s+/)[0])}</h2><p>Manage your people, programmes, and learning activity from one place.</p><button class="admin-primary-link" type="button" data-admin-page="users">Manage users <span aria-hidden="true">→</span></button></div><div class="admin-welcome-art" aria-hidden="true"><span>✦</span><i></i><b></b></div></section>
+    <section class="admin-metrics" aria-label="System summary">
+      <article class="admin-metric-card"><span class="admin-metric-icon users-icon">♙</span><div><small>Total users</small><strong>${users.length}</strong><span>${learners.length} learners · ${lecturers.length} facilitators</span></div><a href="#" data-admin-page="users" aria-label="View users">↗</a></article>
+      <article class="admin-metric-card"><span class="admin-metric-icon courses-icon">▤</span><div><small>Active programmes</small><strong>${cachedCourses.length}</strong><span>Across the learning catalogue</span></div><a href="#" data-admin-page="courses" aria-label="View courses">↗</a></article>
+      <article class="admin-metric-card"><span class="admin-metric-icon activity-icon">◷</span><div><small>Assessments</small><strong>${cachedAssignments.length}</strong><span>Published learning activities</span></div><a href="#" data-admin-page="reports" aria-label="View reports">↗</a></article>
+      <article class="admin-metric-card"><span class="admin-metric-icon health-icon">✓</span><div><small>System health</small><strong>99.8%</strong><span>${activeUsers.length} accounts active</span></div><span class="admin-health-dot" title="All systems operational"></span></article>
+    </section>
+    <div class="admin-overview-grid"><section class="admin-panel"><div class="admin-panel-heading"><div><h2>Recent learners</h2><p>Latest learner accounts in your institution</p></div><button type="button" data-admin-page="users">View all <span aria-hidden="true">→</span></button></div><ul class="admin-learner-list">${learnerRows}</ul></section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>Programme overview</h2><p>Current learning catalogue</p></div><button type="button" data-admin-page="courses">All programmes <span aria-hidden="true">→</span></button></div><ul class="admin-course-list">${courseRows || '<li class="admin-empty-row">No programmes available.</li>'}</ul><div class="admin-system-status"><span class="admin-health-dot"></span><span><strong>All systems operational</strong><small>API, authentication, and storage are online</small></span><b>99.8%</b></div></section></div>
+  </div>`;
 }
 
 function renderCourses(role) {
@@ -938,8 +1141,8 @@ function renderCourses(role) {
   if (role === "lecturer") list = cachedCourses.filter(c => c.instructor && c.instructor.includes("Chen"));
   if (role === "learner") {
     return list.length ? '<div class="registered-programme-list">' + list.map(course =>
-      '<article class="registered-programme-card"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span></div>' +
-      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + Math.max(0, Math.min(100, Number(course.progress) || 0)) + '%"></span></div><small>' + Math.max(0, Math.min(100, Number(course.progress) || 0)) + '% complete</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
+      '<article class="registered-programme-card" data-course-card-id="' + escapeHTML(course.id) + '"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span></div>' +
+      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + courseModuleStats(course).percent + '%"></span></div><small>' + courseModuleStats(course).percent + '% complete' + (courseModuleStats(course).total ? ' · ' + courseModuleStats(course).completed + '/' + courseModuleStats(course).total + ' modules' : '') + '</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
     ).join("") + '</div>' : '<div class="student-empty-state">No registered programme is linked to this learner account. When you register, only that programme and its modules will appear here.</div>';
   }
   return '<div class="course-grid">' + list.map(c =>
@@ -951,8 +1154,15 @@ function renderCourses(role) {
 function renderProgrammeModules(course, expanded = false, label = "View modules") {
   const groups = Object.entries(course.modules || {});
   if (!groups.length) return '<p class="student-empty-state">Module information will be added to this programme.</p>';
-  return '<details class="programme-modules"' + (expanded ? ' open' : '') + '><summary>' + escapeHTML(label) + '</summary><div class="programme-module-groups">' + groups.map(([group, modules]) =>
-    '<section class="programme-module-group"><h4>' + escapeHTML(group) + '</h4><ol>' + modules.map(module => '<li>' + escapeHTML(module) + '</li>').join("") + '</ol></section>'
+  const stats = courseModuleStats(course);
+  return '<details class="programme-modules" data-course-modules="' + escapeHTML(course.id) + '"' + (expanded ? ' open' : '') + '><summary><span>' + escapeHTML(label) + '</span><span class="programme-module-completion">' + stats.completed + '/' + stats.total + ' complete</span></summary><div class="programme-module-groups">' + groups.map(([group, modules]) => {
+    const groupProgress = currentUser.moduleProgress?.[course.id]?.[group] || {};
+    const completedCount = modules.reduce((count, _, index) => count + (groupProgress[index] === true ? 1 : 0), 0);
+    return '<section class="programme-module-group"><div class="programme-module-heading"><h4>' + escapeHTML(group) + '</h4><span>' + completedCount + '/' + modules.length + '</span></div><ol>' + modules.map((module, index) => {
+      const completed = groupProgress[index] === true;
+      return '<li><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span><span>' + escapeHTML(module) + '</span></button></li>';
+    }).join("") + '</ol></section>';
+  }
   ).join("") + '</div></details>';
 }
 
@@ -1068,7 +1278,7 @@ function renderSecurity() {
 
 function renderSettings(role) {
   if (role === "learner") {
-    return '<div class="card"><h3>Learning preferences</h3><p style="color:var(--text-muted)">Manage your learner profile and dashboard display preferences.</p><div class="settings-action-row"><div><strong>Personal information</strong><small>Review or update your learner profile details.</small></div><button type="button" class="btn btn-primary" id="edit-learner-profile">Edit profile</button></div><div class="settings-action-row"><div><strong>Dashboard theme</strong><small>Switch between light and dark appearance from the top bar.</small></div><span class="status completed">' + (document.body.classList.contains("light") ? "Light" : "Dark") + ' theme</span></div></div>';
+    return '<div class="card"><h3>Learning preferences</h3><p style="color:var(--text-muted)">Manage your learner profile and dashboard display preferences.</p><div class="settings-action-row"><div><strong>Personal information</strong><small>Review or update your learner profile and picture.</small></div><button type="button" class="btn btn-primary" id="edit-learner-profile">Edit profile</button></div></div>';
   }
   return '<div class="card"><h3>System Settings</h3>' +
     '<div class="form-group"><label>Institution</label><input class="form-control" value="Chimera University" /></div>' +
