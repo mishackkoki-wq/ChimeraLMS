@@ -2276,9 +2276,9 @@ body.light #login-screen { background:#edf2f4; }
   .login-panel .login-brand { margin-bottom:1.5rem; }
 }
 
-/* LMS hero: supporting copy, supplied learner artwork, and the restored classroom image. */
+/* LMS hero: supporting copy alongside one full-size image. */
 .hero-lms {
-  grid-template-columns: minmax(0, .98fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, .98fr) minmax(0, 2fr);
   min-height: clamp(600px, calc(100svh - 110px), 760px);
   align-items: stretch;
 }
@@ -2295,21 +2295,18 @@ body.light #login-screen { background:#edf2f4; }
   line-height: 1.05;
 }
 .hero-lms .mission-kicker { color: var(--chimera-red); }
-.hero-art-panel,.hero-classroom-panel { min-width: 0; min-height: 0; margin: 0; overflow: hidden; }
-.hero-art-panel { display: grid; place-items: center; background: #07121c; }
-.hero-art-image { display: block; width: 100%; height: 100%; object-fit: contain; }
-.hero-classroom-panel { position: relative; background: #0b1c2c; }
-.hero-classroom-panel .hero-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.hero-art-panel { min-width: 0; min-height: 0; margin: 0; overflow: hidden; background: #07121c; }
+.hero-art-image { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 
 @media(max-width:1100px) {
   .hero-lms { grid-template-columns: 1fr; min-height: 0; }
   .hero-lms .hero-left { padding: 3rem clamp(1.5rem, 7vw, 5rem); }
   .hero-lms .hero-statement { font-size: clamp(2.5rem, 7vw, 4.8rem); }
-  .hero-art-panel,.hero-classroom-panel { aspect-ratio: 16 / 9; }
+  .hero-art-panel { aspect-ratio: 16 / 9; }
 }
 @media(max-width:560px) {
   .hero-lms .hero-left { padding: 2.5rem 1.4rem; }
-  .hero-art-panel,.hero-classroom-panel { aspect-ratio: 4 / 3; }
+  .hero-art-panel { aspect-ratio: 4 / 3; }
   .hero-lms .hero-statement { font-size: clamp(2.35rem, 10vw, 3.3rem); }
 }
 
