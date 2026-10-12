@@ -8,13 +8,14 @@
       "avatar": "AJ",
       "status": "Active",
       "demo": true,
-      "lastLogin": "2026-10-08T12:02:38.218Z",
+      "lastLogin": "2026-10-12T08:26:33.275Z",
       "identityNumber": "",
       "passportNumber": "",
       "dateOfBirth": "",
       "gender": "",
       "phone": "",
-      "lastSchool": ""
+      "lastSchool": "",
+      "selectedCourse": "Data Science Practitioner"
     },
     {
       "id": "u2",
@@ -23,9 +24,8 @@
       "role": "lecturer",
       "avatar": "SC",
       "status": "Active",
-      "lastLogin": "2026-10-12T12:13:29.943Z",
-      "passwordSalt": "283910f5bf554e315d46abfe358a7180",
-      "passwordHash": "0eb497a55765e4c62565472f47bc0be9d50e4a5e107cc6d6799578b25444b9e1fa1b6e71408d35d8328babade0748d6232fff707ce3260abc115ccbd02b632e6"
+      "demo": true,
+      "lastLogin": "2026-10-08T09:30:29.855Z"
     },
     {
       "id": "u3",

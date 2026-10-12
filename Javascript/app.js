@@ -4,7 +4,8 @@
 // The API is hosted by Node on port 5000. When the frontend is opened through
 // the optional Python preview server (for example, port 8080), use Node's API
 // origin instead of sending API calls to the static file server.
-const API_ORIGIN = location.protocol === "file:" || location.port !== "5000"
+const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+const API_ORIGIN = location.protocol === "file:" || (isLocalHost && location.port !== "5000")
   ? "http://127.0.0.1:5000"
   : location.origin;
 const API = `${API_ORIGIN}/api`;

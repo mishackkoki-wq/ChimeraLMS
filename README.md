@@ -38,10 +38,9 @@ workspace task starts the backend automatically; approve the task prompt if VS
 Code asks for permission. If it does not start, choose **Terminal → Run Task →
 Start Chimera LMS API**.
 
-Sign in using the username (or email) and password for a registered account.
-Choose the matching account type on the sign-in form. The selected role is
-checked against the registered account; it does not grant access to another
-role. Demo learner accounts are not accepted for authentication.
+Sign in using the username (or email) and password for an account. Choose the
+matching account type on the sign-in form; the selected role is checked against
+the account.
 
 ### Staff Sign-in (Local Development)
 The seeded staff accounts do not need learner registration. On first sign-in, use:
@@ -49,11 +48,13 @@ The seeded staff accounts do not need learner registration. On first sign-in, us
 | Role | Email | Initial password |
 |------|-------|------------------|
 | Admin | `m.rivera@admin.edu` | `Admin123!` |
-| Facilitator | `s.chen@faculty.edu` | `Lecturer123!` |
+| Lecturer | `s.chen@faculty.edu` | `Lecturer123!` |
 
 The initial password is saved as a scrypt hash after the first successful sign-in.
 For local environments, set `CHIMERA_ADMIN_PASSWORD` and `CHIMERA_LECTURER_PASSWORD`
-before starting the server to choose different first-sign-in passwords.
+before starting the server to choose different first-sign-in passwords. Built-in
+demo learner accounts use the password `demo`; their email addresses and roles
+are listed on the sign-in form.
 
 ## API Endpoints
 
@@ -88,7 +89,7 @@ before starting the server to choose different first-sign-in passwords.
 
 ## Security Notes (Demo)
 
-- Registered passwords are hashed with Node.js scrypt; demo accounts cannot authenticate
+- Registered passwords are hashed with Node.js scrypt; built-in demo accounts use the shared `demo` password
 - Set a private `JWT_SECRET` environment variable before deployment
 - For production: use PostgreSQL, proper password hashing (bcrypt/argon2), HTTPS, rate limiting
 
