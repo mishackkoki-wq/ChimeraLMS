@@ -8,13 +8,14 @@
       "avatar": "AJ",
       "status": "Active",
       "demo": true,
-      "lastLogin": "2026-10-08T12:02:38.218Z",
+      "lastLogin": "2026-10-12T08:26:33.275Z",
       "identityNumber": "",
       "passportNumber": "",
       "dateOfBirth": "",
       "gender": "",
       "phone": "",
-      "lastSchool": ""
+      "lastSchool": "",
+      "selectedCourse": "Data Science Practitioner"
     },
     {
       "id": "u2",
@@ -24,7 +25,7 @@
       "avatar": "SC",
       "status": "Active",
       "demo": true,
-      "lastLogin": "2026-10-08T09:30:29.855Z"
+      "lastLogin": "2026-10-12T08:24:57.156Z"
     },
     {
       "id": "u3",
