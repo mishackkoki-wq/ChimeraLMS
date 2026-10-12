@@ -1,7 +1,11 @@
 // ==================== CHIMERA LMS (Full-Stack Frontend) ====================
 // The Node server hosts both the frontend and API; file:// previews use the local API.
 
-const API = `${location.protocol === "file:" ? "http://127.0.0.1:5000" : location.origin}/api`;
+const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+const API_ORIGIN = location.protocol === "file:" || (isLocalHost && location.port !== "5000")
+  ? "http://127.0.0.1:5000"
+  : location.origin;
+const API = `${API_ORIGIN}/api`;
 
 let currentUser = null;
 let currentPage = "dashboard";

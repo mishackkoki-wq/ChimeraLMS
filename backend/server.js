@@ -251,20 +251,27 @@ async function handle(request, response) {
       (item.username && loginKey(item.username) === username) ||
       (!item.username && loginKey(item.name) === username)
     );
-    if (!account || account.demo || !account.passwordSalt || !account.passwordHash) {
+    if (!account) {
       return send(response, 401, { error: "No registered account was found for that username or email" });
     }
     if (requestedRole && account.role !== requestedRole) {
       return send(response, 401, { error: "The selected account type does not match this account" });
     }
-    const supplied = hashPassword(String(body.password || ""), account.passwordSalt).hash;
+    const password = String(body.password || "");
+    const validDemoPassword = account.demo && password === "demo";
+    const hasRegisteredPassword = Boolean(account.passwordSalt && account.passwordHash);
+    const supplied = hasRegisteredPassword ? hashPassword(password, account.passwordSalt).hash : "";
     const suppliedBuffer = Buffer.from(supplied, "hex");
-    const storedBuffer = Buffer.from(account.passwordHash, "hex");
-    if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
+    const storedBuffer = Buffer.from(account.passwordHash || "", "hex");
+    const validRegisteredPassword = hasRegisteredPassword && suppliedBuffer.length === storedBuffer.length && crypto.timingSafeEqual(suppliedBuffer, storedBuffer);
+    if (!validDemoPassword && !validRegisteredPassword) {
       return send(response, 401, { error: "Incorrect username/email or password" });
     }
     if (account.status === "Inactive") {
       return send(response, 403, { error: "This account is inactive. Contact an administrator." });
+    }
+    if (account.demo && account.role === "learner" && !account.selectedCourse && data.courses.length) {
+      account.selectedCourse = data.courses[0].title;
     }
     account.lastLogin = new Date().toISOString();
     saveData(data);

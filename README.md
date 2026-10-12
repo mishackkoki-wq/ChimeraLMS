@@ -40,8 +40,8 @@ Start Chimera LMS API**.
 
 Sign in using the username (or email) and password for a registered account.
 Choose the matching account type on the sign-in form. The selected role is
-checked against the registered account; it does not grant access to another
-role. Demo accounts are not accepted for authentication.
+checked against the account. Built-in demo accounts are also available with
+the password `demo`; the sign-in form lists their email addresses and roles.
 
 ## API Endpoints
 
@@ -76,7 +76,7 @@ role. Demo accounts are not accepted for authentication.
 
 ## Security Notes (Demo)
 
-- Registered passwords are hashed with Node.js scrypt; demo accounts cannot authenticate
+- Registered passwords are hashed with Node.js scrypt; built-in demo accounts use the shared `demo` password
 - Set a private `JWT_SECRET` environment variable before deployment
 - For production: use PostgreSQL, proper password hashing (bcrypt/argon2), HTTPS, rate limiting
 
