@@ -9,9 +9,20 @@ const PORT = Number(process.env.PORT || 5000);
 const HOST = process.env.HOST || "127.0.0.1";
 const DATA_FILE = path.join(__dirname, "data.json");
 const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
+const STATIC_ROOT = path.resolve(__dirname, "..");
 const PROGRAMMES = JSON.parse(fs.readFileSync(PROGRAMMES_FILE, "utf8"));
 const JWT_SECRET = process.env.JWT_SECRET || "chimera-lms-local-development-secret-change-me";
 const TOKEN_TTL_SECONDS = 60 * 60 * 12;
+const STATIC_DIRECTORIES = new Set(["Css", "Javascript", "assets"]);
+const MIME_TYPES = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".js": "text/javascript; charset=utf-8",
+  ".png": "image/png",
+  ".webp": "image/webp"
+};
 
 function initialData() {
   return {
@@ -99,6 +110,69 @@ function send(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function serveStatic(request, response, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.setHeader("Allow", "GET, HEAD");
+    return send(response, 405, { error: "Method not allowed" });
+  }
+
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    return send(response, 400, { error: "Invalid URL path" });
+  }
+  if (pathname.includes("\\") || pathname.includes("\0")) {
+    return send(response, 400, { error: "Invalid URL path" });
+  }
+
+  const relativePath = pathname.replace(/^\/+/, "") || "index.html";
+  const segments = relativePath.split("/");
+  if (
+    segments.some(segment => segment === "." || segment === "..") ||
+    (segments[0] !== "index.html" && !STATIC_DIRECTORIES.has(segments[0])) ||
+    (segments[0] === "index.html" && segments.length !== 1)
+  ) {
+    return send(response, 404, { error: "Not found" });
+  }
+
+  const filePath = path.resolve(STATIC_ROOT, relativePath);
+  const relativeToRoot = path.relative(STATIC_ROOT, filePath);
+  if (
+    relativeToRoot === ".." ||
+    relativeToRoot.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeToRoot)
+  ) {
+    return send(response, 404, { error: "Not found" });
+  }
+
+  let fileStats;
+  try {
+    fileStats = fs.statSync(filePath);
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") {
+      return send(response, 404, { error: "Not found" });
+    }
+    throw error;
+  }
+  if (!fileStats.isFile()) return send(response, 404, { error: "Not found" });
+
+  response.writeHead(200, {
+    "Content-Type": MIME_TYPES[path.extname(filePath).toLowerCase()] || "application/octet-stream",
+    "Content-Length": fileStats.size,
+    "X-Content-Type-Options": "nosniff"
+  });
+  if (request.method === "HEAD") return response.end();
+
+  const stream = fs.createReadStream(filePath);
+  stream.on("error", error => {
+    console.error(error);
+    if (!response.headersSent) send(response, 500, { error: "Unable to serve file" });
+    else response.destroy(error);
+  });
+  stream.pipe(response);
+}
+
 function readBody(request, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -158,7 +232,7 @@ async function handle(request, response) {
 
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
   const route = url.pathname.replace(/\/$/, "") || "/";
-  if (!route.startsWith("/api/")) return send(response, 404, { error: "Not found" });
+  if (!route.startsWith("/api/")) return serveStatic(request, response, url);
   if (route === "/api/health") return send(response, 200, { status: "ok", service: "Chimera LMS JavaScript API" });
 
   const data = loadData();
@@ -167,6 +241,10 @@ async function handle(request, response) {
 
   if (request.method === "POST" && route === "/api/auth/login") {
     const body = await readBody(request);
+    const requestedRole = String(body.role || "");
+    if (requestedRole && !["learner", "lecturer", "admin"].includes(requestedRole)) {
+      return send(response, 400, { error: "Choose a valid account type" });
+    }
     const username = loginKey(body.username || body.email);
     const account = data.users.find(item =>
       loginKey(item.email) === username ||
@@ -176,11 +254,17 @@ async function handle(request, response) {
     if (!account || account.demo || !account.passwordSalt || !account.passwordHash) {
       return send(response, 401, { error: "No registered account was found for that username or email" });
     }
+    if (requestedRole && account.role !== requestedRole) {
+      return send(response, 401, { error: "The selected account type does not match this account" });
+    }
     const supplied = hashPassword(String(body.password || ""), account.passwordSalt).hash;
     const suppliedBuffer = Buffer.from(supplied, "hex");
     const storedBuffer = Buffer.from(account.passwordHash, "hex");
     if (suppliedBuffer.length !== storedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, storedBuffer)) {
       return send(response, 401, { error: "Incorrect username/email or password" });
+    }
+    if (account.status === "Inactive") {
+      return send(response, 403, { error: "This account is inactive. Contact an administrator." });
     }
     account.lastLogin = new Date().toISOString();
     saveData(data);

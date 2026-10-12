@@ -1,7 +1,7 @@
 // ==================== CHIMERA LMS (Full-Stack Frontend) ====================
-// Connects to the JavaScript backend at http://127.0.0.1:5000
+// The Node server hosts both the frontend and API; file:// previews use the local API.
 
-const API = "http://127.0.0.1:5000/api";
+const API = `${location.protocol === "file:" ? "http://127.0.0.1:5000" : location.origin}/api`;
 
 let currentUser = null;
 let currentPage = "dashboard";
@@ -343,12 +343,13 @@ loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
+  const role = document.getElementById("login-role").value;
   const submitButton = loginForm.querySelector('button[type="submit"]');
   submitButton.disabled = true;
   try {
     const data = await api("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, role })
     });
     if (!data || !data.token || !data.user) {
       throw new Error("Unable to connect to the LMS. Please try again when the server is available.");

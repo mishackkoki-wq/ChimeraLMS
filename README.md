@@ -27,24 +27,21 @@ chimera-lms/
 
 ## Quick Start
 
-### 1. Start Backend
+### Start the LMS
 ```bash
 cd backend
 npm start
 ```
-API runs at **http://127.0.0.1:5000**. When opening this folder in VS Code, the
+The LMS and API run together at **http://127.0.0.1:5000**. Open that address to
+register a learner account or sign in. When opening this folder in VS Code, the
 workspace task starts the backend automatically; approve the task prompt if VS
 Code asks for permission. If it does not start, choose **Terminal → Run Task →
 Start Chimera LMS API**.
 
-### 2. Start Frontend
-```bash
-python -m http.server 8080
-```
-Open **http://localhost:8080**
-
 Sign in using the username (or email) and password for a registered account.
-Demo accounts are not accepted for authentication.
+Choose the matching account type on the sign-in form. The selected role is
+checked against the registered account; it does not grant access to another
+role. Demo accounts are not accepted for authentication.
 
 ## API Endpoints
 
@@ -52,6 +49,7 @@ Demo accounts are not accepted for authentication.
 |--------|-------------------------|------------------------------|-----------|
 | GET    | /api/health             | Health check                 | Public    |
 | POST   | /api/auth/login         | Login → JWT                  | Public    |
+| POST   | /api/auth/register      | Create learner account       | Public    |
 | GET    | /api/me                 | Current user                 | Bearer    |
 | GET    | /api/courses            | List courses                 | Bearer    |
 | GET    | /api/assignments        | List assignments             | Bearer    |
