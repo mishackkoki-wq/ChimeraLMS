@@ -322,7 +322,7 @@ async function handle(request, response) {
     if (selectedProgramme) data.enrollments.push({ userId: learner.id, courseId: selectedProgramme.id });
     data.program_applications.push({ id: crypto.randomUUID(), userId: learner.id, course: learner.selectedCourse, status: "pending", submittedAt: new Date().toISOString() });
     saveData(data);
-    return send(response, 201, { token: makeToken(learner), user: publicUser(learner) });
+    return send(response, 201, { token: makeToken(learner), user: profileUser(learner) });
   }
 
   if (request.method === "POST" && route === "/api/auth/recover") {

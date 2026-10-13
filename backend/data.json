@@ -103,6 +103,27 @@
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
       "selectedCourse": "Data Science Practitioner",
       "lastLogin": "2026-10-13T08:31:55.280Z"
+    },
+    {
+      "id": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "name": "Christiaan Dhludhlu",
+      "username": "Chrisman442",
+      "email": "boikanyodhludhlu59@gmail.com",
+      "role": "learner",
+      "avatar": "CD",
+      "status": "Active",
+      "passwordSalt": "3564c295735c4ca8f8f180d956845dbe",
+      "passwordHash": "f2329d7be0c5a9d863819a10a19de4358ff7300766ac5327d9ab7738af598eb391aac7987049b475b37bbea41fd4aefab0b1ab1853f20ebac0ac062fcf0c12e2",
+      "identityNumber": "0412185138085",
+      "passportNumber": "",
+      "dateOfBirth": "2004-12-18",
+      "gender": "male",
+      "phone": "0678729968",
+      "lastSchool": "Noordgesig Secondary",
+      "recoveryQuestion": "What is the name of the town where you were born?",
+      "moduleProgress": {},
+      "recoveryAnswerHash": "8e42c362ee4a781480ad3479c279ca322bf0f502b6ab0b72948fc3004a7700f1",
+      "selectedCourse": "AI Software Developer"
     }
   ],
   "courses": [
@@ -338,6 +359,10 @@
     {
       "userId": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
       "courseId": "cert-data-science"
+    },
+    {
+      "userId": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "courseId": "cert-ai-software-developer"
     }
   ],
   "submissions": [],
@@ -356,6 +381,13 @@
       "course": "Data Science Practitioner",
       "status": "pending",
       "submittedAt": "2026-10-09T10:22:02.954Z"
+    },
+    {
+      "id": "325c31b5-743f-4c21-b410-4cfaa3028bb3",
+      "userId": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "course": "AI Software Developer",
+      "status": "pending",
+      "submittedAt": "2026-10-13T08:42:31.402Z"
     }
   ],
   "audit_log": [],
