@@ -254,24 +254,15 @@ async function handle(request, response) {
       (item.username && loginKey(item.username) === username) ||
       (!item.username && loginKey(item.name) === username)
     );
-    const isStaffBootstrap = Boolean(account && account.demo && ["admin", "lecturer"].includes(account.role));
-    const isLearnerDemo = Boolean(account && account.demo && account.role === "learner");
-    if (!account || (account.demo && !isStaffBootstrap && !isLearnerDemo) || (!isStaffBootstrap && !isLearnerDemo && (!account.passwordSalt || !account.passwordHash))) {
+    const isDemoAccount = Boolean(account && account.demo);
+    if (!account || (!isDemoAccount && (!account.passwordSalt || !account.passwordHash))) {
       return send(response, 401, { error: "No registered account was found for that username or email" });
     }
     if (requestedRole && account.role !== requestedRole) {
       return send(response, 401, { error: "The selected account type does not match this account" });
     }
     const password = String(body.password || "");
-    let validDemoPassword = false;
-    if (isStaffBootstrap) {
-      const initialPassword = account.role === "admin"
-        ? (process.env.CHIMERA_ADMIN_PASSWORD || "Admin123!")
-        : (process.env.CHIMERA_LECTURER_PASSWORD || "Lecturer123!");
-      validDemoPassword = password === initialPassword;
-    } else if (account.demo && account.role === "learner") {
-      validDemoPassword = password === "demo";
-    }
+    const validDemoPassword = isDemoAccount && password === "demo";
     const hasRegisteredPassword = Boolean(account.passwordSalt && account.passwordHash);
     const supplied = hasRegisteredPassword ? hashPassword(password, account.passwordSalt).hash : "";
     const suppliedBuffer = Buffer.from(supplied, "hex");
@@ -283,13 +274,13 @@ async function handle(request, response) {
     if (account.status === "Inactive") {
       return send(response, 403, { error: "This account is inactive. Contact an administrator." });
     }
-    if (isStaffBootstrap) {
+    if (isDemoAccount) {
       const { salt, hash } = hashPassword(password);
       account.passwordSalt = salt;
       account.passwordHash = hash;
       delete account.demo;
     }
-    if (account.demo && account.role === "learner" && !account.selectedCourse && data.courses.length) {
+    if (isDemoAccount && account.role === "learner" && !account.selectedCourse && data.courses.length) {
       account.selectedCourse = data.courses[0].title;
     }
     account.lastLogin = new Date().toISOString();
