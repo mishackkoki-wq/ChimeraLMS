@@ -38,6 +38,10 @@ workspace task starts the backend automatically; approve the task prompt if VS
 Code asks for permission. If it does not start, choose **Terminal → Run Task →
 Start Chimera LMS API**.
 
+The server listens on all network interfaces by default, so devices that can
+reach the host can open the LMS using the host machine's network address and
+port 5000. Set `HOST=127.0.0.1` to restrict access to the host machine.
+
 Sign in using the username (or email) and password for an account. Choose the
 matching account type on the sign-in form; the selected role is checked against
 the account.

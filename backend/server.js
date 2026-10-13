@@ -6,7 +6,9 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const PORT = Number(process.env.PORT || 5000);
-const HOST = process.env.HOST || "127.0.0.1";
+// Listen on all interfaces so hosted deployments and other devices can reach
+// the API. Set HOST=127.0.0.1 to restrict it to this machine.
+const HOST = process.env.HOST || "0.0.0.0";
 const DATA_FILE = path.join(__dirname, "data.json");
 const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
 const STATIC_ROOT = path.resolve(__dirname, "..");

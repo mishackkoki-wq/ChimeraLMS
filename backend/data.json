@@ -2,8 +2,8 @@
   "users": [
     {
       "id": "u1",
-      "name": "Alex Johnson",
-      "email": "alex.j@student.edu",
+      "name": "Elsa Snowiie",
+      "email": "elsasnowiie@gmail.com",
       "role": "learner",
       "avatar": "AJ",
       "status": "Active",
@@ -91,8 +91,8 @@
       "role": "learner",
       "avatar": "MM",
       "status": "Active",
-      "passwordSalt": "11734ffec9273a56906682465ba5f70c",
-      "passwordHash": "2aa1c01f6e8037c925c04424ff36014d76b0ffd844a949348d0b514a5bb0dea74ca054549f6b202795b2d2afe1ee7f6f46002adb8fdeda4e3a76fa1a54c4d9e1",
+      "passwordSalt": "79e11a9ac53d7fe79672aa3e60b09f7a",
+      "passwordHash": "b9286a4c588a7a21c9eb1e15bf618adf9378369a2a910df090a96c70c482969a403866d56b1c9f3eca1c20f82354b5251eaaa9a756e68968708b7182bbaf4395",
       "identityNumber": "0004216055089",
       "passportNumber": "",
       "dateOfBirth": "2000-04-21",
@@ -101,7 +101,8 @@
       "lastSchool": "thogoa",
       "recoveryQuestion": "What was the name of your first school?",
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
-      "selectedCourse": "Data Science Practitioner"
+      "selectedCourse": "Data Science Practitioner",
+      "lastLogin": "2026-10-13T08:31:55.280Z"
     }
   ],
   "courses": [

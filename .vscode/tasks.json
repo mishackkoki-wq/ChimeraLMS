@@ -27,7 +27,7 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": "^> chimera-lms-backend@.* start$",
-          "endsPattern": "^Chimera LMS JavaScript API listening on http://127\\.0\\.0\\.1:5000$"
+          "endsPattern": "^Chimera LMS JavaScript API listening on http://0\\.0\\.0\\.0:5000$"
         }
       }
     }
