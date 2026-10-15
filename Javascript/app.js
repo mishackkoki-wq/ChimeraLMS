@@ -725,6 +725,33 @@ function attachPageListeners() {
       button.disabled = false;
     }
   }));
+  document.querySelectorAll("[data-open-topic]").forEach(button => button.addEventListener("click", () => {
+    openTopicLesson(button.dataset.courseId, button.dataset.moduleGroup, Number(button.dataset.moduleIndex));
+  }));
+  document.querySelectorAll("[data-module-note-save]").forEach(button => button.addEventListener("click", async () => {
+    const courseId = button.dataset.courseId;
+    const group = button.dataset.moduleGroup;
+    const moduleIndex = Number(button.dataset.moduleIndex);
+    const noteField = button.parentElement.querySelector("[data-module-note]");
+    const status = button.parentElement.querySelector("[data-module-note-status]");
+    const note = noteField.value;
+    button.disabled = true;
+    if (status) status.textContent = "Saving…";
+    try {
+      const result = await api("/modules/notes", {
+        method: "PATCH",
+        body: JSON.stringify({ courseId, group, moduleIndex, note })
+      });
+      if (!result) throw new Error("Could not save your note. Check your server connection.");
+      currentUser.moduleNotes = result.moduleNotes;
+      if (status) status.textContent = note.trim() ? "Saved" : "Note removed";
+    } catch (error) {
+      if (status) status.textContent = "Not saved";
+      showToast(error.message || "Could not save your note");
+    } finally {
+      button.disabled = false;
+    }
+  }));
   const createBtn = document.getElementById("create-assessment-btn");
   if (createBtn) createBtn.addEventListener("click", openCreateAssessmentModal);
   const uploadBtn = document.getElementById("upload-materials-btn");
@@ -1068,7 +1095,7 @@ function renderLearnerDashboard() {
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const courseCards = courses.length ? courses.map(course => {
     const courseStats = courseModuleStats(course);
-    return `<article class="student-course-card" data-course-card-id="${escapeHTML(course.id)}"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseStats.percent}%"></span></div><small>${courseStats.percent}% complete${courseStats.total ? ` · ${courseStats.completed}/${courseStats.total} modules` : ""}</small></div>${renderProgrammeModules(course, false, "Programme modules")}</article>`;
+    return `<article class="student-course-card" data-course-card-id="${escapeHTML(course.id)}"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseStats.percent}%"></span></div><small>${courseStats.percent}% complete${courseStats.total ? ` · ${courseStats.completed}/${courseStats.total} modules` : ""}</small></div><button type="button" class="student-text-link student-course-continue" data-dashboard-page="courses">Continue learning <span aria-hidden="true">→</span></button>${renderProgrammeModules(course, false, "Programme modules")}</article>`;
   }).join("") : '<div class="student-empty-state">No registered programme is linked to this learner account yet. Once a programme is registered, its course and modules will appear here.</div>';
   const assignmentRows = upcoming.length ? upcoming.slice(0, 4).map(assignment => {
     const dueKey = assignmentDueKey(assignment);
@@ -1156,15 +1183,33 @@ function renderProgrammeModules(course, expanded = false, label = "View modules"
   const groups = Object.entries(course.modules || {});
   if (!groups.length) return '<p class="student-empty-state">Module information will be added to this programme.</p>';
   const stats = courseModuleStats(course);
-  return '<details class="programme-modules" data-course-modules="' + escapeHTML(course.id) + '"' + (expanded ? ' open' : '') + '><summary><span>' + escapeHTML(label) + '</span><span class="programme-module-completion">' + stats.completed + '/' + stats.total + ' complete</span></summary><div class="programme-module-groups">' + groups.map(([group, modules]) => {
+  return '<details class="programme-modules" data-course-modules="' + escapeHTML(course.id) + '"' + (expanded ? ' open' : '') + '><summary><span>' + escapeHTML(label) + '</span><span class="programme-module-completion">' + stats.completed + '/' + stats.total + ' complete</span></summary><div class="programme-module-groups">' + groups.map(([group, modules], groupIndex) => {
     const groupProgress = currentUser.moduleProgress?.[course.id]?.[group] || {};
     const completedCount = modules.reduce((count, _, index) => count + (groupProgress[index] === true ? 1 : 0), 0);
     return '<section class="programme-module-group"><div class="programme-module-heading"><h4>' + escapeHTML(group) + '</h4><span>' + completedCount + '/' + modules.length + '</span></div><ol>' + modules.map((module, index) => {
       const completed = groupProgress[index] === true;
-      return '<li><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span><span>' + escapeHTML(module) + '</span></button></li>';
+      const note = currentUser.moduleNotes?.[course.id]?.[group]?.[index] || "";
+      return '<li class="programme-module-item"><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '" aria-label="Mark ' + escapeHTML(module) + (completed ? ' incomplete' : ' complete') + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span></button><button type="button" class="programme-module-topic" data-open-topic data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">' + escapeHTML(module) + '</button><div class="programme-module-note"><label class="visually-hidden" for="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '">Notes for ' + escapeHTML(module) + '</label><textarea id="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '" data-module-note maxlength="5000" placeholder="Add notes for this topic…">' + escapeHTML(note) + '</textarea><button type="button" data-module-note-save data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">Save note</button><span data-module-note-status aria-live="polite"></span></div></li>';
     }).join("") + '</ol></section>';
   }
   ).join("") + '</div></details>';
+}
+
+function openTopicLesson(courseId, group, moduleIndex) {
+  const course = cachedCourses.find(item => item.id === courseId);
+  const topics = course?.modules?.[group];
+  const topic = Array.isArray(topics) ? topics[moduleIndex] : "";
+  if (!course || !topic) return;
+  const subject = topic.charAt(0).toLowerCase() + topic.slice(1).replace(/[.!?]+$/, "");
+  const intro = `This topic focuses on ${subject}. It is part of the ${group.toLowerCase()} for ${course.title}. Work through the lessons in order, then try the activity to check your understanding.`;
+  const lessons = [
+    { title: "Build the foundation", body: `Start by identifying what “${topic}” means in this programme. Write down the key terms you already know, then note what information, tools, or people are involved.` },
+    { title: "Follow the process", body: `Break ${subject} into clear steps: define the goal, gather the relevant inputs, choose an appropriate method, and check the result. Explain why each step matters before moving to the next.` },
+    { title: "Apply and review", body: `Use a realistic example from study or work. Describe how you would use ${subject}, what a good result should look like, and how you would identify and correct an error.` }
+  ];
+  const body = `<p class="topic-lesson-intro">${escapeHTML(intro)}</p><div class="topic-lesson-list">${lessons.map((lesson, index) => `<section><span>LESSON ${index + 1}</span><h4>${escapeHTML(lesson.title)}</h4><p>${escapeHTML(lesson.body)}</p></section>`).join("")}</div><section class="topic-lesson-activity"><h4>Practice activity</h4><p>Create a short worked example for <strong>${escapeHTML(topic)}</strong>. Include the goal, the steps you followed, the result, and one thing you would improve next time.</p></section><p class="topic-lesson-source">Course: ${escapeHTML(course.title)} · ${escapeHTML(group)}</p>`;
+  openModal(topic, body, '<button type="button" class="btn btn-primary" id="topic-lesson-done">Done</button>');
+  document.getElementById("topic-lesson-done").addEventListener("click", closeModal);
 }
 
 function renderLearningPaths() {

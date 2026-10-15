@@ -94,8 +94,8 @@ function verifyToken(token) {
 }
 
 function publicUser(user) {
-  const { id, name, username, email, role, avatar, profileImage, moduleProgress, status, lastLogin, selectedCourse } = user;
-  return { id, name, ...(username ? { username } : {}), email, role, avatar, ...(profileImage ? { profileImage } : {}), ...(moduleProgress ? { moduleProgress } : {}), status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
+  const { id, name, username, email, role, avatar, profileImage, moduleProgress, moduleNotes, status, lastLogin, selectedCourse } = user;
+  return { id, name, ...(username ? { username } : {}), email, role, avatar, ...(profileImage ? { profileImage } : {}), ...(moduleProgress ? { moduleProgress } : {}), ...(moduleNotes ? { moduleNotes } : {}), status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
 }
 
 function profileUser(user) {
@@ -425,6 +425,32 @@ async function handle(request, response) {
     else delete account.moduleProgress[course.id][group][index];
     saveData(data);
     return send(response, 200, { moduleProgress: account.moduleProgress });
+  }
+
+  if (request.method === "PATCH" && route === "/api/modules/notes") {
+    if (!requireRole(user, ["learner"])) return send(response, 403, { error: "Only learners can save module notes" });
+    const body = await readBody(request);
+    const course = data.courses.find(item => item.id === String(body.courseId || ""));
+    const account = data.users.find(item => item.id === user.id);
+    const enrolled = course && (
+      data.enrollments.some(enrollment => enrollment.userId === user.id && enrollment.courseId === course.id) ||
+      courseNameKey(account && account.selectedCourse) === courseNameKey(course.title)
+    );
+    const group = String(body.group || "");
+    const index = Number(body.moduleIndex);
+    const note = String(body.note || "");
+    if (!enrolled) return send(response, 403, { error: "You are not enrolled in this course" });
+    if (!Array.isArray(course.modules && course.modules[group]) || !Number.isInteger(index) || index < 0 || index >= course.modules[group].length) {
+      return send(response, 400, { error: "Choose a valid programme module" });
+    }
+    if (note.length > 5000) return send(response, 400, { error: "Notes must be 5,000 characters or fewer" });
+    if (!account.moduleNotes || typeof account.moduleNotes !== "object" || Array.isArray(account.moduleNotes)) account.moduleNotes = {};
+    if (!account.moduleNotes[course.id] || typeof account.moduleNotes[course.id] !== "object") account.moduleNotes[course.id] = {};
+    if (!account.moduleNotes[course.id][group] || typeof account.moduleNotes[course.id][group] !== "object") account.moduleNotes[course.id][group] = {};
+    if (note.trim()) account.moduleNotes[course.id][group][index] = note;
+    else delete account.moduleNotes[course.id][group][index];
+    saveData(data);
+    return send(response, 200, { moduleNotes: account.moduleNotes });
   }
 
   if (route === "/api/attendance" && request.method === "GET") {

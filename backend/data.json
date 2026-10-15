@@ -8,7 +8,7 @@
       "avatar": "AJ",
       "status": "Active",
       "demo": true,
-      "lastLogin": "2026-10-12T08:26:33.275Z",
+      "lastLogin": "2026-10-13T08:58:01.555Z",
       "identityNumber": "",
       "passportNumber": "",
       "dateOfBirth": "",
@@ -91,8 +91,8 @@
       "role": "learner",
       "avatar": "MM",
       "status": "Active",
-      "passwordSalt": "79e11a9ac53d7fe79672aa3e60b09f7a",
-      "passwordHash": "b9286a4c588a7a21c9eb1e15bf618adf9378369a2a910df090a96c70c482969a403866d56b1c9f3eca1c20f82354b5251eaaa9a756e68968708b7182bbaf4395",
+      "passwordSalt": "ac696cd3362564815949f6e92ff67d98",
+      "passwordHash": "7c1e3053a53f30a9af3b8f3e6ed069c803d8fe268911e00ead40994dbcea9b40d8ba2bba3ee6cb0a814655a0bdd6839a2661e91825d4ea806a011e06d4084b40",
       "identityNumber": "0004216055089",
       "passportNumber": "",
       "dateOfBirth": "2000-04-21",
@@ -102,7 +102,17 @@
       "recoveryQuestion": "What was the name of your first school?",
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
       "selectedCourse": "Data Science Practitioner",
-      "lastLogin": "2026-10-13T08:31:55.280Z"
+      "lastLogin": "2026-10-15T11:04:01.765Z",
+      "moduleProgress": {
+        "cert-data-science": {
+          "Practical Skill Modules": {
+            "0": true
+          },
+          "Work Experience Modules": {
+            "2": true
+          }
+        }
+      }
     },
     {
       "id": "e6463868-3a57-454f-8423-4bf8413b45f9",
