@@ -504,6 +504,24 @@ async function handle(request, response) {
     if (!requireRole(user, ["admin"])) return send(response, 403, { error: "Forbidden" });
     return send(response, 200, data.audit_log);
   }
+  if (request.method === "POST" && route === "/api/audit") {
+    if (!requireRole(user, ["admin"])) return send(response, 403, { error: "Forbidden" });
+    const body = await readBody(request);
+    const action = String(body.action || "").trim().slice(0, 180);
+    if (!action) return send(response, 400, { error: "An audit action is required" });
+    const entry = {
+      id: crypto.randomUUID(),
+      time: new Date().toISOString(),
+      user: user.email,
+      action,
+      status: "Success"
+    };
+    if (!Array.isArray(data.audit_log)) data.audit_log = [];
+    data.audit_log.unshift(entry);
+    data.audit_log = data.audit_log.slice(0, 5000);
+    saveData(data);
+    return send(response, 201, entry);
+  }
   if (request.method === "GET" && route === "/api/stats") {
     if (user.role === "learner") {
       const learner = data.users.find(item => item.id === user.id);
