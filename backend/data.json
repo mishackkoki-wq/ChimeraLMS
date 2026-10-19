@@ -2,13 +2,13 @@
   "users": [
     {
       "id": "u1",
-      "name": "Alex Johnson",
-      "email": "alex.j@student.edu",
+      "name": "Elsa Snowiie",
+      "email": "elsasnowiie@gmail.com",
       "role": "learner",
       "avatar": "AJ",
       "status": "Active",
       "demo": true,
-      "lastLogin": "2026-10-12T08:26:33.275Z",
+      "lastLogin": "2026-10-13T08:58:01.555Z",
       "identityNumber": "",
       "passportNumber": "",
       "dateOfBirth": "",
@@ -92,8 +92,8 @@
       "role": "learner",
       "avatar": "MM",
       "status": "Active",
-      "passwordSalt": "11734ffec9273a56906682465ba5f70c",
-      "passwordHash": "2aa1c01f6e8037c925c04424ff36014d76b0ffd844a949348d0b514a5bb0dea74ca054549f6b202795b2d2afe1ee7f6f46002adb8fdeda4e3a76fa1a54c4d9e1",
+      "passwordSalt": "ac696cd3362564815949f6e92ff67d98",
+      "passwordHash": "7c1e3053a53f30a9af3b8f3e6ed069c803d8fe268911e00ead40994dbcea9b40d8ba2bba3ee6cb0a814655a0bdd6839a2661e91825d4ea806a011e06d4084b40",
       "identityNumber": "0004216055089",
       "passportNumber": "",
       "dateOfBirth": "2000-04-21",
@@ -102,7 +102,39 @@
       "lastSchool": "thogoa",
       "recoveryQuestion": "What was the name of your first school?",
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
-      "selectedCourse": "Data Science Practitioner"
+      "selectedCourse": "Data Science Practitioner",
+      "lastLogin": "2026-10-15T12:19:46.454Z",
+      "moduleProgress": {
+        "cert-data-science": {
+          "Practical Skill Modules": {
+            "0": true
+          },
+          "Work Experience Modules": {
+            "2": true
+          }
+        }
+      }
+    },
+    {
+      "id": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "name": "Christiaan Dhludhlu",
+      "username": "Chrisman442",
+      "email": "boikanyodhludhlu59@gmail.com",
+      "role": "learner",
+      "avatar": "CD",
+      "status": "Active",
+      "passwordSalt": "3564c295735c4ca8f8f180d956845dbe",
+      "passwordHash": "f2329d7be0c5a9d863819a10a19de4358ff7300766ac5327d9ab7738af598eb391aac7987049b475b37bbea41fd4aefab0b1ab1853f20ebac0ac062fcf0c12e2",
+      "identityNumber": "0412185138085",
+      "passportNumber": "",
+      "dateOfBirth": "2004-12-18",
+      "gender": "male",
+      "phone": "0678729968",
+      "lastSchool": "Noordgesig Secondary",
+      "recoveryQuestion": "What is the name of the town where you were born?",
+      "moduleProgress": {},
+      "recoveryAnswerHash": "8e42c362ee4a781480ad3479c279ca322bf0f502b6ab0b72948fc3004a7700f1",
+      "selectedCourse": "AI Software Developer"
     }
   ],
   "courses": [
@@ -338,6 +370,10 @@
     {
       "userId": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
       "courseId": "cert-data-science"
+    },
+    {
+      "userId": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "courseId": "cert-ai-software-developer"
     }
   ],
   "submissions": [],
@@ -356,6 +392,13 @@
       "course": "Data Science Practitioner",
       "status": "pending",
       "submittedAt": "2026-10-09T10:22:02.954Z"
+    },
+    {
+      "id": "325c31b5-743f-4c21-b410-4cfaa3028bb3",
+      "userId": "e6463868-3a57-454f-8423-4bf8413b45f9",
+      "course": "AI Software Developer",
+      "status": "pending",
+      "submittedAt": "2026-10-13T08:42:31.402Z"
     }
   ],
   "audit_log": [],

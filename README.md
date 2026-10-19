@@ -38,23 +38,20 @@ workspace task starts the backend automatically; approve the task prompt if VS
 Code asks for permission. If it does not start, choose **Terminal → Run Task →
 Start Chimera LMS API**.
 
+The server listens on all network interfaces by default, so devices that can
+reach the host can open the LMS using the host machine's network address and
+port 5000. Set `HOST=127.0.0.1` to restrict access to the host machine.
+
 Sign in using the username (or email) and password for an account. Choose the
 matching account type on the sign-in form; the selected role is checked against
 the account.
 
-### Staff Sign-in (Local Development)
-The seeded staff accounts do not need learner registration. On first sign-in, use:
-
-| Role | Email | Initial password |
-|------|-------|------------------|
-| Admin | `m.rivera@admin.edu` | `Admin123!` |
-| Lecturer | `s.chen@faculty.edu` | `Lecturer123!` |
-
-The initial password is saved as a scrypt hash after the first successful sign-in.
-For local environments, set `CHIMERA_ADMIN_PASSWORD` and `CHIMERA_LECTURER_PASSWORD`
-before starting the server to choose different first-sign-in passwords. Built-in
-demo learner accounts use the password `demo`; their email addresses and roles
-are listed on the sign-in form.
+### Seeded Sign-in Accounts
+Accounts in `backend/data.json` marked as demo can sign in with the password
+`demo`. After the first successful sign-in, the server saves that password as a
+scrypt hash and removes the demo flag. Registered accounts with saved password
+hashes continue to use their own passwords. Choose the matching account type on
+the sign-in form.
 
 ## API Endpoints
 

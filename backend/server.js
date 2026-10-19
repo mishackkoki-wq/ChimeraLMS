@@ -6,7 +6,9 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const PORT = Number(process.env.PORT || 5000);
-const HOST = process.env.HOST || "127.0.0.1";
+// Listen on all interfaces so hosted deployments and other devices can reach
+// the API. Set HOST=127.0.0.1 to restrict it to this machine.
+const HOST = process.env.HOST || "0.0.0.0";
 const DATA_FILE = path.join(__dirname, "data.json");
 const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
 const STATIC_ROOT = path.resolve(__dirname, "..");
@@ -92,8 +94,8 @@ function verifyToken(token) {
 }
 
 function publicUser(user) {
-  const { id, name, username, email, role, avatar, profileImage, moduleProgress, status, lastLogin, selectedCourse } = user;
-  return { id, name, ...(username ? { username } : {}), email, role, avatar, ...(profileImage ? { profileImage } : {}), ...(moduleProgress ? { moduleProgress } : {}), status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
+  const { id, name, username, email, role, avatar, profileImage, moduleProgress, moduleNotes, status, lastLogin, selectedCourse } = user;
+  return { id, name, ...(username ? { username } : {}), email, role, avatar, ...(profileImage ? { profileImage } : {}), ...(moduleProgress ? { moduleProgress } : {}), ...(moduleNotes ? { moduleNotes } : {}), status, lastLogin, ...(selectedCourse ? { selectedCourse } : {}) };
 }
 
 function profileUser(user) {
@@ -254,24 +256,15 @@ async function handle(request, response) {
       (item.username && loginKey(item.username) === username) ||
       (!item.username && loginKey(item.name) === username)
     );
-    const isStaffBootstrap = Boolean(account && account.demo && ["admin", "lecturer"].includes(account.role));
-    const isLearnerDemo = Boolean(account && account.demo && account.role === "learner");
-    if (!account || (account.demo && !isStaffBootstrap && !isLearnerDemo) || (!isStaffBootstrap && !isLearnerDemo && (!account.passwordSalt || !account.passwordHash))) {
+    const isDemoAccount = Boolean(account && account.demo);
+    if (!account || (!isDemoAccount && (!account.passwordSalt || !account.passwordHash))) {
       return send(response, 401, { error: "No registered account was found for that username or email" });
     }
     if (requestedRole && account.role !== requestedRole) {
       return send(response, 401, { error: "The selected account type does not match this account" });
     }
     const password = String(body.password || "");
-    let validDemoPassword = false;
-    if (isStaffBootstrap) {
-      const initialPassword = account.role === "admin"
-        ? (process.env.CHIMERA_ADMIN_PASSWORD || "Admin123!")
-        : (process.env.CHIMERA_LECTURER_PASSWORD || "Lecturer123!");
-      validDemoPassword = password === initialPassword;
-    } else if (account.demo && account.role === "learner") {
-      validDemoPassword = password === "demo";
-    }
+    const validDemoPassword = isDemoAccount && password === "demo";
     const hasRegisteredPassword = Boolean(account.passwordSalt && account.passwordHash);
     const supplied = hasRegisteredPassword ? hashPassword(password, account.passwordSalt).hash : "";
     const suppliedBuffer = Buffer.from(supplied, "hex");
@@ -283,13 +276,13 @@ async function handle(request, response) {
     if (account.status === "Inactive") {
       return send(response, 403, { error: "This account is inactive. Contact an administrator." });
     }
-    if (isStaffBootstrap) {
+    if (isDemoAccount) {
       const { salt, hash } = hashPassword(password);
       account.passwordSalt = salt;
       account.passwordHash = hash;
       delete account.demo;
     }
-    if (account.demo && account.role === "learner" && !account.selectedCourse && data.courses.length) {
+    if (isDemoAccount && account.role === "learner" && !account.selectedCourse && data.courses.length) {
       account.selectedCourse = data.courses[0].title;
     }
     account.lastLogin = new Date().toISOString();
@@ -329,7 +322,7 @@ async function handle(request, response) {
     if (selectedProgramme) data.enrollments.push({ userId: learner.id, courseId: selectedProgramme.id });
     data.program_applications.push({ id: crypto.randomUUID(), userId: learner.id, course: learner.selectedCourse, status: "pending", submittedAt: new Date().toISOString() });
     saveData(data);
-    return send(response, 201, { token: makeToken(learner), user: publicUser(learner) });
+    return send(response, 201, { token: makeToken(learner), user: profileUser(learner) });
   }
 
   if (request.method === "POST" && route === "/api/auth/recover") {
@@ -432,6 +425,32 @@ async function handle(request, response) {
     else delete account.moduleProgress[course.id][group][index];
     saveData(data);
     return send(response, 200, { moduleProgress: account.moduleProgress });
+  }
+
+  if (request.method === "PATCH" && route === "/api/modules/notes") {
+    if (!requireRole(user, ["learner"])) return send(response, 403, { error: "Only learners can save module notes" });
+    const body = await readBody(request);
+    const course = data.courses.find(item => item.id === String(body.courseId || ""));
+    const account = data.users.find(item => item.id === user.id);
+    const enrolled = course && (
+      data.enrollments.some(enrollment => enrollment.userId === user.id && enrollment.courseId === course.id) ||
+      courseNameKey(account && account.selectedCourse) === courseNameKey(course.title)
+    );
+    const group = String(body.group || "");
+    const index = Number(body.moduleIndex);
+    const note = String(body.note || "");
+    if (!enrolled) return send(response, 403, { error: "You are not enrolled in this course" });
+    if (!Array.isArray(course.modules && course.modules[group]) || !Number.isInteger(index) || index < 0 || index >= course.modules[group].length) {
+      return send(response, 400, { error: "Choose a valid programme module" });
+    }
+    if (note.length > 5000) return send(response, 400, { error: "Notes must be 5,000 characters or fewer" });
+    if (!account.moduleNotes || typeof account.moduleNotes !== "object" || Array.isArray(account.moduleNotes)) account.moduleNotes = {};
+    if (!account.moduleNotes[course.id] || typeof account.moduleNotes[course.id] !== "object") account.moduleNotes[course.id] = {};
+    if (!account.moduleNotes[course.id][group] || typeof account.moduleNotes[course.id][group] !== "object") account.moduleNotes[course.id][group] = {};
+    if (note.trim()) account.moduleNotes[course.id][group][index] = note;
+    else delete account.moduleNotes[course.id][group][index];
+    saveData(data);
+    return send(response, 200, { moduleNotes: account.moduleNotes });
   }
 
   if (route === "/api/attendance" && request.method === "GET") {
