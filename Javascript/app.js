@@ -18,6 +18,12 @@ let cachedCourses = [];
 let cachedAssignments = [];
 let cachedUsers = [];
 let cachedAudit = [];
+let cachedNotifications = [];
+let cachedSubmissions = [];
+let cachedAnnouncements = [];
+let cachedMessages = [];
+let cachedProgress = [];
+const adminSectionView = { users: "all", courses: "catalogue", admissions: "applications" };
 let attendanceRegister = { courseId: "", date: "", learners: [], records: [] };
 let attendanceCourseId = "";
 let attendanceDate = "";
@@ -233,6 +239,10 @@ async function api(path, options = {}) {
   try {
     const res = await fetch(API + path, { ...options, headers });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && authToken) {
+      authToken = null; currentUser = null; localStorage.removeItem("chimera_token");
+      if (typeof logoutBtn !== "undefined" && logoutBtn) logoutBtn.click();
+    }
     if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
     return data;
   } catch (err) {
@@ -241,6 +251,16 @@ async function api(path, options = {}) {
       return null;
     }
     throw err;
+  }
+}
+
+async function apiOptional(path, options = {}) {
+  try { return await api(path, options); }
+  catch (error) {
+    // Keep role dashboards available when connected to a server version that
+    // predates optional cross-role features such as inbox notifications.
+    if (error.message === "Not found" || error.message === "HTTP 404") return [];
+    throw error;
   }
 }
 
@@ -254,6 +274,7 @@ const navItems = {
     { id: "schedule", label: "Calendar", icon: "▦" },
     { id: "progress", label: "Progress Analytics", icon: "↗" },
     { id: "achievements", label: "Achievements", icon: "☆" },
+    { id: "communication", label: "Messages", icon: "✉" },
     { id: "settings", label: "Settings", icon: "⚙" }
   ],
   lecturer: [
@@ -288,16 +309,7 @@ function initTheme() {
   const savedTheme = localStorage.getItem("chimera-theme");
   document.body.classList.toggle("light", savedTheme !== "dark");
 }
-notificationsButton.addEventListener("click", () => {
-  if (currentUser?.role === "learner") {
-    if (currentPage !== "dashboard") { currentPage = "dashboard"; renderPage(); }
-    document.getElementById("learner-notifications")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  } else if (currentUser?.role === "admin") {
-    showToast("You’re all caught up.");
-  } else {
-    showToast("Notifications are available in the learner dashboard.");
-  }
-});
+notificationsButton.addEventListener("click", showNotifications);
 document.getElementById("messages-button").addEventListener("click", () => showToast("You have no new messages."));
 
 document.getElementById("global-search").addEventListener("submit", event => {
@@ -556,30 +568,122 @@ async function showApp(historyMode = "replace") {
   document.getElementById("user-role").textContent = displayRole;
   updateAvatar(document.getElementById("user-avatar"), currentUser);
   updateHeaderProfile(displayRole, currentUser);
-  await loadData();
+  // Render the role workspace before waiting for the API. If a request is
+  // slow or unavailable, users still get a complete dashboard shell instead
+  // of a blank content area.
   renderNav();
   renderPage();
+  try {
+    await loadData();
+    if (!currentUser) return;
+    renderNav();
+    renderPage();
+  } catch (error) {
+    console.warn("Could not refresh dashboard data; keeping the available dashboard visible", error);
+  }
 }
 
 async function loadData() {
-  const [courses, assignments, users, audit] = await Promise.all([
-    api("/courses"),
-    api("/assignments"),
-    currentUser.role === "admin" ? api("/users") : Promise.resolve(null),
-    currentUser.role === "admin" ? api("/audit") : Promise.resolve(null)
+  const role = currentUser.role;
+  const safeLoad = async (path, optional = false) => {
+    try { return await (optional ? apiOptional(path) : api(path)); }
+    catch (error) {
+      if (error.message === "Unauthorized") throw error;
+      console.warn(`Could not load ${path}; showing dashboard fallback data`, error);
+      return null;
+    }
+  };
+  const [courses, assignments, users, audit, notifications, submissions, announcements, messages] = await Promise.all([
+    safeLoad("/courses"),
+    safeLoad("/assignments"),
+    role === "admin" ? safeLoad("/users") : Promise.resolve(null),
+    role === "admin" ? safeLoad("/audit") : Promise.resolve(null),
+    safeLoad("/notifications", true),
+    role === "lecturer" || role === "admin" ? safeLoad("/submissions", true) : Promise.resolve([]),
+    safeLoad("/announcements", true),
+    role === "learner" || role === "lecturer" ? safeLoad("/messages", true) : Promise.resolve([])
   ]);
   // Learner access is based on the authenticated programme returned by the API.
   // Do not fall back to a global demo catalogue when the API is unavailable.
   const offlineCourses = getOfflineCourses();
-  cachedCourses = courses || (currentUser.role === "learner"
+  cachedCourses = courses || (role === "learner"
     ? offlineCourses.filter(course => course.title === currentUser.selectedCourse)
     : offlineCourses);
   cachedAssignments = assignments || getOfflineAssignments().filter(assignment =>
-    currentUser.role !== "learner" || cachedCourses.some(course => course.id === assignment.courseId)
+    role !== "learner" || cachedCourses.some(course => course.id === assignment.courseId)
   );
   cachedUsers = users || getOfflineUsers();
   cachedAudit = audit || getOfflineAudit();
+  cachedNotifications = notifications || [];
+  cachedSubmissions = submissions || [];
+  cachedAnnouncements = announcements || [];
+  cachedMessages = messages || [];
+  cachedProgress = (role === "lecturer" || role === "admin") && cachedCourses.length ? (await Promise.all(cachedCourses.map(course => safeLoad(`/progress?courseId=${encodeURIComponent(course.id)}`, true)))).flatMap(items => items || []) : [];
+  updateNotificationBadge();
 }
+
+function updateNotificationBadge() {
+  const badge = notificationsButton.querySelector(".toolbar-count");
+  const unread = cachedNotifications.filter(n => !n.read).length;
+  badge.textContent = String(unread); badge.hidden = unread === 0;
+  notificationsButton.setAttribute("aria-label", `Notifications${unread ? `, ${unread} unread` : ""}`);
+}
+function showNotifications() {
+  const rows = cachedNotifications.length ? cachedNotifications.map(n => `<article class="notification-inbox-row ${n.read ? "is-read" : ""}"><div><b>${escapeHTML(n.title)}</b><p>${escapeHTML(n.message)}</p><small>${escapeHTML(new Date(n.createdAt).toLocaleString())}</small></div>${n.read ? "" : `<button type="button" data-mark-notification="${escapeHTML(n.id)}">Mark as read</button>`}</article>`).join("") : '<p class="student-empty-state">No notifications yet.</p>';
+  openModal("Notifications", `<div class="notification-inbox">${rows}<button type="button" class="btn btn-ghost" id="mark-all-notifications">Mark all as read</button></div>`, '<button class="btn btn-primary" id="notifications-close">Close</button>');
+  document.getElementById("notifications-close").onclick = closeModal;
+  document.querySelectorAll("[data-mark-notification]").forEach(b => b.onclick = () => markNotificationsRead(b.dataset.markNotification));
+  document.getElementById("mark-all-notifications").onclick = () => markNotificationsRead();
+}
+async function markNotificationsRead(id) {
+  try { await api("/notifications/read", { method: "POST", body: JSON.stringify(id ? { id } : {}) });
+    cachedNotifications = cachedNotifications.map(n => !id || n.id === id ? { ...n, read: true } : n); updateNotificationBadge(); showNotifications();
+  } catch (e) { showToast(e.message || "Could not update notifications"); }
+}
+
+setInterval(async () => {
+  if (!authToken || !currentUser) return;
+  try {
+    let refreshPage = false;
+    const role = currentUser.role;
+    const notifications = await api("/notifications");
+    if (notifications) { cachedNotifications = notifications; updateNotificationBadge(); }
+    const [courses, assignments] = await Promise.all([api("/courses"), api("/assignments")]);
+    if (courses && JSON.stringify(courses) !== JSON.stringify(cachedCourses)) { cachedCourses = courses; refreshPage = true; }
+    if (assignments && JSON.stringify(assignments) !== JSON.stringify(cachedAssignments)) { cachedAssignments = assignments; refreshPage = true; }
+    const announcements = await apiOptional("/announcements");
+    if (announcements && JSON.stringify(announcements) !== JSON.stringify(cachedAnnouncements)) { cachedAnnouncements = announcements; refreshPage = true; }
+    if (role === "learner" || role === "lecturer") {
+      const messages = await apiOptional("/messages");
+      if (messages) {
+        const changed = messages.length !== cachedMessages.length;
+        cachedMessages = messages;
+        if (changed) refreshPage = true;
+      }
+    }
+    if (role === "lecturer") {
+      const submissions = await api("/submissions");
+      if (submissions) {
+        const changed = submissions.length !== cachedSubmissions.length || submissions.some((item, index) => item.score !== cachedSubmissions[index]?.score);
+        cachedSubmissions = submissions;
+        if (changed) refreshPage = true;
+      }
+    }
+    if (role === "admin" && ["users", "settings"].includes(currentPage)) {
+      const [users, audit] = await Promise.all([api("/users"), api("/audit")]);
+      if (users && JSON.stringify(users) !== JSON.stringify(cachedUsers)) { cachedUsers = users; refreshPage = true; }
+      if (audit && JSON.stringify(audit) !== JSON.stringify(cachedAudit)) { cachedAudit = audit; refreshPage = true; }
+    }
+    if (role === "admin" && currentPage === "admissions") {
+      const progress = (await Promise.all(cachedCourses.map(course => apiOptional(`/progress?courseId=${encodeURIComponent(course.id)}`)))).flatMap(items => items || []);
+      if (JSON.stringify(progress) !== JSON.stringify(cachedProgress)) { cachedProgress = progress; refreshPage = true; }
+    }
+    if (refreshPage && currentUser) { renderNav(); renderPage(); }
+  } catch (error) {
+    if (error.message === "Unauthorized") return;
+    console.warn("Could not refresh LMS notifications", error);
+  }
+}, 20000);
 
 function getOfflineCourses() {
   return [
@@ -675,7 +779,7 @@ function renderPage() {
     courses: () => renderCourses(role),
     content: () => role === "lecturer" ? renderLecturerSection("content") : "",
     students: () => role === "lecturer" ? renderLecturerSection("students") : "",
-    communication: () => role === "lecturer" ? renderLecturerSection("communication") : "",
+    communication: () => role === "lecturer" ? renderLecturerSection("communication") : role === "learner" ? renderLearnerMessages() : "",
     assignments: () => renderAssignments(),
     grades: () => renderGrades(),
     progress: () => renderProgress(),
@@ -697,6 +801,18 @@ function renderPage() {
 }
 
 function attachPageListeners() {
+  document.querySelectorAll("[data-admin-view]").forEach(button => button.addEventListener("click", () => {
+    const [group, view] = button.dataset.adminView.split(":");
+    if (!Object.prototype.hasOwnProperty.call(adminSectionView, group)) return;
+    adminSectionView[group] = view;
+    renderPage();
+  }));
+  const userStatusFilter = document.querySelector("[data-user-status-filter-select]");
+  if (userStatusFilter) userStatusFilter.addEventListener("change", () => {
+    document.querySelectorAll(".admin-users-table tbody tr[data-user-role-filter]").forEach(row => {
+      row.hidden = userStatusFilter.value !== "all" && row.dataset.userStatusFilter !== userStatusFilter.value;
+    });
+  });
   document.querySelectorAll("[data-lecturer-page]").forEach(button => button.addEventListener("click", () => { currentPage = button.dataset.lecturerPage; renderNav(); renderPage(); }));
   document.querySelectorAll("[data-lecturer-toast]").forEach(button => button.addEventListener("click", () => showToast(button.dataset.lecturerToast)));
   const rosterSearch = document.querySelector(".roster-search");
@@ -708,7 +824,70 @@ function attachPageListeners() {
     renderNav();
     renderPage();
   }));
-  document.querySelectorAll("[data-admin-action]").forEach(button => button.addEventListener("click", () => openAdminAction(button.dataset.adminAction)));
+  document.querySelectorAll("[data-admin-action]").forEach(button => button.addEventListener("click", () => { if (button.id !== "admin-add-user") openAdminAction(button.dataset.adminAction); }));
+  const publishCourse = document.getElementById("publish-course-btn");
+  if (publishCourse) publishCourse.onclick = openPublishCourseModal;
+  document.querySelectorAll("[data-course-decision]").forEach(button => button.onclick = async () => {
+    try { await api("/courses/decision", { method: "POST", body: JSON.stringify({ courseId: button.dataset.courseDecision, approved: button.dataset.approved === "true" }) }); await loadData(); renderPage(); showToast("Course decision recorded"); }
+    catch (error) { showToast(error.message || "Could not update course"); }
+  });
+  document.querySelectorAll("[data-user-status]").forEach(button => button.onclick = async () => {
+    try { await api("/users/status", { method: "POST", body: JSON.stringify({ userId: button.dataset.userStatus, active: button.dataset.active !== "false" }) }); await loadData(); renderPage(); showToast("Account status updated"); }
+    catch (error) { showToast(error.message || "Could not update account"); }
+  });
+  document.querySelectorAll("[data-enroll-course]").forEach(button => button.onclick = () => updateEnrollment(button.dataset.enrollCourse, "enroll"));
+  document.querySelectorAll("[data-leave-course]").forEach(button => button.onclick = () => updateEnrollment(button.dataset.leaveCourse, "leave"));
+  document.querySelectorAll("[data-quiz-id]").forEach(button => button.onclick = () => openQuizModal(button.dataset.quizId));
+  document.querySelectorAll("[data-lesson-delete]").forEach(button => button.onclick = async () => {
+    if (!window.confirm("Delete this lesson for the course?")) return;
+    try { await api("/lessons/delete", { method: "POST", body: JSON.stringify({ courseId: button.dataset.courseId, group: button.dataset.group, index: Number(button.dataset.index) }) }); await loadData(); renderPage(); showToast("Lesson deleted"); }
+    catch (error) { showToast(error.message || "Could not delete lesson"); }
+  });
+  document.querySelectorAll("[data-assessment-delete]").forEach(button => button.onclick = async () => {
+    if (!window.confirm("Delete this assessment and its submissions?")) return;
+    try { await api("/assignments/delete", { method: "POST", body: JSON.stringify({ assignmentId: button.dataset.assessmentDelete }) }); await loadData(); renderPage(); showToast("Assessment deleted"); }
+    catch (error) { showToast(error.message || "Could not delete assessment"); }
+  });
+  const lessonForm = document.getElementById("lesson-add-form");
+  if (lessonForm) lessonForm.onsubmit = async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(lessonForm));
+    try { await api("/lessons", { method: "POST", body: JSON.stringify(values) }); await loadData(); renderPage(); showToast("Lesson added"); }
+    catch (error) { showToast(error.message || "Could not add lesson"); }
+  };
+  const learnerMessageForm = document.getElementById("learner-message-form");
+  if (learnerMessageForm) learnerMessageForm.onsubmit = event => submitMessageForm(event, learnerMessageForm);
+  document.querySelectorAll("[data-announcement-form]").forEach(form => form.onsubmit = event => submitAnnouncementForm(event, form));
+  document.querySelectorAll("[data-message-reply]").forEach(button => button.onclick = () => openMessageReply(button.dataset.messageReply));
+  document.querySelectorAll("[data-message-student]").forEach(button => button.onclick = () => openMessageReply(null, button.dataset.messageStudent, button.dataset.courseId));
+  document.querySelectorAll("[data-user-role]").forEach(select => select.onchange = async () => {
+    try { await api("/users/manage", { method: "POST", body: JSON.stringify({ action: "role", userId: select.dataset.userRole, role: select.value }) }); await loadData(); renderPage(); showToast("User role updated"); }
+    catch (error) { showToast(error.message || "Could not change role"); }
+  });
+  document.querySelectorAll("[data-user-delete]").forEach(button => button.onclick = async () => {
+    if (!window.confirm("Delete this user and their enrolments and submissions?")) return;
+    try { await api("/users/manage", { method: "POST", body: JSON.stringify({ action: "delete", userId: button.dataset.userDelete }) }); await loadData(); renderPage(); showToast("User deleted"); }
+    catch (error) { showToast(error.message || "Could not delete user"); }
+  });
+  const addUserButton = document.getElementById("admin-add-user");
+  if (addUserButton) addUserButton.onclick = openAdminUserModal;
+  document.querySelectorAll("[data-course-reassign]").forEach(button => button.onclick = () => openCourseReassign(button.dataset.courseReassign));
+  document.querySelectorAll("[data-course-archive]").forEach(button => button.onclick = async () => {
+    if (!window.confirm("Archive this course? Learners will no longer see it in the catalog.")) return;
+    try { await api("/courses/manage", { method: "POST", body: JSON.stringify({ action: "archive", courseId: button.dataset.courseArchive }) }); await loadData(); renderPage(); showToast("Course archived"); }
+    catch (error) { showToast(error.message || "Could not archive course"); }
+  });
+  const adminEnrollmentForm = document.getElementById("admin-enrollment-form");
+  if (adminEnrollmentForm) adminEnrollmentForm.onsubmit = async event => {
+    event.preventDefault(); const values = Object.fromEntries(new FormData(adminEnrollmentForm));
+    try { await api("/enrollments", { method: "POST", body: JSON.stringify(values) }); await loadData(); renderPage(); showToast(values.action === "remove" ? "Learner removed from course" : "Learner enrolled"); }
+    catch (error) { showToast(error.message || "Could not update learner enrolment"); }
+  };
+  const auditRoleFilter = document.getElementById("audit-role-filter");
+  if (auditRoleFilter) auditRoleFilter.onchange = () => {
+    const table = auditRoleFilter.closest(".admin-panel")?.querySelector("tbody");
+    const role = auditRoleFilter.value;
+    if (table) table.querySelectorAll("tr").forEach((row, index) => { const entry = cachedAudit[index]; row.hidden = role !== "all" && entry?.role !== role; });
+  };
   document.querySelectorAll(".admin-table-search").forEach(input => input.addEventListener("input", () => {
     const table = input.closest(".admin-panel")?.querySelector("tbody");
     if (!table) return;
@@ -718,11 +897,7 @@ function attachPageListeners() {
   const selectAllUsers = document.querySelector(".admin-select-all");
   if (selectAllUsers) selectAllUsers.addEventListener("change", () => document.querySelectorAll(".admin-users-table tbody input[type=checkbox]").forEach(box => { box.checked = selectAllUsers.checked; }));
   const broadcastForm = document.getElementById("admin-broadcast-form");
-  if (broadcastForm) broadcastForm.addEventListener("submit", event => {
-    event.preventDefault();
-    const subject = broadcastForm.querySelector('input[placeholder^="e.g."]')?.value.trim();
-    if (subject) openAdminAction(`Send announcement · ${subject}`);
-  });
+  if (broadcastForm) broadcastForm.onsubmit = event => submitAnnouncementForm(event, broadcastForm);
   const editLearnerProfile = document.getElementById("edit-learner-profile");
   if (editLearnerProfile) editLearnerProfile.addEventListener("click", openLearnerProfile);
   document.querySelectorAll("[data-submit-id]").forEach(btn => {
@@ -785,7 +960,7 @@ function attachPageListeners() {
   const uploadBtn = document.getElementById("upload-materials-btn");
   if (uploadBtn) uploadBtn.addEventListener("click", openUploadModal);
   document.querySelectorAll("[data-grade]").forEach(btn => {
-    btn.addEventListener("click", () => openGradeModal(btn.dataset.student, btn.dataset.assignment));
+    btn.addEventListener("click", () => openGradeModal(btn.dataset.student, btn.dataset.assignment, btn.dataset.studentName, btn.dataset.assignmentTitle));
   });
   document.querySelectorAll("[data-dashboard-page]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1026,7 +1201,7 @@ function formattedDate(value, options = { weekday: "short", month: "short", day:
 }
 
 function learnerActiveCourses() {
-  return cachedCourses.filter(course => course.status !== "completed");
+  return cachedCourses.filter(course => !course.catalogOnly && course.status !== "completed");
 }
 
 function courseModuleStats(course) {
@@ -1175,7 +1350,7 @@ function renderLearnerDashboard() {
   return `<div class="student-dashboard">
     <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><div class="student-welcome-visual">${dashboardAvatar}<img class="welcome-banner-image" src="assets/chimera-welcome-banner.png" alt="Chimera Holdings" /></div></section>
     <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" id="learner-overall-progress" style="--progress-value:${progress}"><span id="learner-overall-progress-value">${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
-    <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section id="learner-notifications" class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section></aside></div>
+    <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section id="learner-notifications" class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section>${cachedAnnouncements.length ? `<section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">COURSE UPDATES</p><h2>Announcements</h2></div></div>${cachedAnnouncements.slice(0,4).map(a=>`<article class="notification-item"><span class="notification-mark">i</span><span><strong>${escapeHTML(a.title)}</strong><small>${escapeHTML(a.message)}</small></span></article>`).join("")}</section>` : ""}</aside></div>
   </div>`;
 }
 
@@ -1207,7 +1382,27 @@ function renderLecturerDashboard() {
   <section class="lecturer-panel"><div class="lecturer-panel-heading"><div><span class="lecturer-eyebrow">ON YOUR CALENDAR</span><h2>Upcoming schedule</h2></div><button data-lecturer-page="schedule">Full calendar ↗</button></div><article class="schedule-item"><time><b>21</b><small>OCT</small></time><span class="schedule-dot"></span><div><strong>Data Analytics · Lecture</strong><small>09:00 – 10:30 · Room B204</small></div></article><article class="schedule-item"><time><b>22</b><small>OCT</small></time><span class="schedule-dot purple"></span><div><strong>Assignment 2 · Deadline</strong><small>23:59 · DATA210</small></div></article><article class="schedule-item"><time><b>24</b><small>OCT</small></time><span class="schedule-dot amber-dot"></span><div><strong>UX Design · Workshop</strong><small>11:00 – 12:30 · Lab 3</small></div></article></section></aside></div></div>`;
 }
 
+function renderLecturerContent() {
+  const courses = cachedCourses.filter(c => c.instructorId === currentUser.id || c.instructor === currentUser.name);
+  const lessonRows = courses.flatMap(course => Object.entries(course.modules || {}).flatMap(([group, lessons]) => lessons.map((title, index) => `<article class="lecturer-course-list"><span class="lecturer-course-icon">L</span><div><strong>${escapeHTML(title)}</strong><small>${escapeHTML(course.code)} · ${escapeHTML(group)}</small></div><button class="admin-inline-link" data-lesson-delete data-course-id="${escapeHTML(course.id)}" data-group="${escapeHTML(group)}" data-index="${index}">Delete lesson</button></article>`))).join("");
+  return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING · CONTENT</p><h1>Lessons &amp; content</h1><p>Build and manage lessons for your courses.</p></div><button class="lecturer-action" id="upload-materials-btn">Upload material</button></div><section class="lecturer-panel"><h2>Add a lesson</h2><form id="lesson-add-form" class="admin-broadcast-form"><label>Course<select name="courseId" required>${courses.map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Lesson group<input name="group" value="Lessons" required></label><label>Lesson title<input name="title" required maxlength="180"></label><button class="lecturer-action" type="submit">Add lesson</button></form><h2>Published lessons</h2>${lessonRows||'<p class="student-empty-state">No lessons yet. Add the first lesson above.</p>'}</section></div>`;
+}
+
+function renderLecturerProgress() {
+  const rows = cachedProgress.map(student => `<tr><td>${escapeHTML(student.name)}</td><td>${escapeHTML(student.email)}</td><td>${escapeHTML(student.courseTitle)} · ${student.progress}%<div class="progress-bar"><div class="progress-fill" style="width:${student.progress}%"></div></div></td><td>${student.completedModules}/${student.totalModules}</td><td>${student.submissions}</td><td><button class="admin-inline-link" data-message-student="${escapeHTML(student.id)}" data-course-id="${escapeHTML(student.courseId)}">Message</button></td></tr>`).join("");
+  return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING · STUDENTS</p><h1>Enrolled learners</h1><p>Lesson progress and assessment activity across your courses.</p></div></div><section class="lecturer-panel"><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Learner</th><th>Email</th><th>Course progress</th><th>Lessons</th><th>Submissions</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6">No learners are enrolled in your courses yet.</td></tr>'}</tbody></table></div></section></div>`;
+}
+
+function renderLecturerCommunication() {
+  const courses = cachedCourses.filter(c => c.instructorId === currentUser.id || c.instructor === currentUser.name);
+  const messages = cachedMessages.map(m => `<article class="question-row"><div><strong>${escapeHTML(m.senderName)} · ${escapeHTML(cachedCourses.find(c=>c.id===m.courseId)?.title||"Course")}</strong><p>${escapeHTML(m.message)}</p><small>${escapeHTML(new Date(m.createdAt).toLocaleString())}</small></div><button class="lecturer-link" data-message-reply="${escapeHTML(m.id)}">Reply</button></article>`).join("");
+  return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING · COMMUNICATION</p><h1>Messages &amp; announcements</h1><p>Respond to learners and post course updates.</p></div></div><div class="lecturer-main-grid"><section class="lecturer-panel"><h2>Course messages</h2>${messages||'<p class="student-empty-state">No learner messages yet.</p>'}</section><section class="lecturer-panel"><h2>Post an announcement</h2><form data-announcement-form class="admin-broadcast-form"><label>Course<select name="courseId" required>${courses.map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Title<input name="title" required></label><label>Message<textarea name="message" required rows="4"></textarea></label><button class="lecturer-action" type="submit">Post announcement</button></form><h2>Recent announcements</h2>${cachedAnnouncements.map(a=>`<article class="announcement-card"><strong>${escapeHTML(a.title)}</strong><p>${escapeHTML(a.message)}</p></article>`).join("")||'<p class="student-empty-state">No announcements yet.</p>'}</section></div></div>`;
+}
+
 function renderLecturerSection(section) {
+  if (section === "content") return renderLecturerContent();
+  if (section === "students") return renderLecturerProgress();
+  if (section === "communication") return renderLecturerCommunication();
   if (section === "content") return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING <span>›</span> CONTENT</p><h1>Content management</h1><p>Organise and publish materials for your courses.</p></div><button class="lecturer-action" id="upload-materials-btn">＋ Upload material</button></div><section class="lecturer-panel"><div class="lecturer-panel-heading"><div><span class="lecturer-eyebrow">COURSE MATERIALS</span><h2>Learning resources</h2><p>Files, lecture recordings, and links</p></div><button data-lecturer-toast="Week added">＋ Add week</button></div><div class="lecturer-course-list"><article><span class="lecturer-course-icon">▣</span><div><strong>Week 3 · Data visualisation</strong><small>Slides · PDF · Published 14 Oct</small></div><span class="resource-state">Visible</span><button data-lecturer-toast="Resource options opened">•••</button></article><article><span class="lecturer-course-icon">▶</span><div><strong>Lecture recording · Chart selection</strong><small>Video · 28 min · Published 16 Oct</small></div><span class="resource-state">Visible</span><button data-lecturer-toast="Resource options opened">•••</button></article></div><div class="upload-dropzone"><strong>＋ &nbsp;Upload videos, PDFs, slides, or links</strong><small>Drag files here or choose from your device</small></div></section></div>`;
   if (section === "students") return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING <span>›</span> STUDENTS</p><h1>Student management</h1><p>Track attendance, performance, and student engagement.</p></div><button class="lecturer-action" data-lecturer-toast="Student report exported">↓ Export roster</button></div><section class="lecturer-panel"><div class="lecturer-panel-heading"><div><span class="lecturer-eyebrow">CLASS ROSTER</span><h2>Students <span class="attention-count">3 at risk</span></h2><p>124 students across 3 modules</p></div><input class="roster-search" type="search" placeholder="Search students…" aria-label="Search students"></div><div class="lecturer-course-list roster-list">${[["AM","Ayesha Mohamed","STU2024012","ayesha.m@learn.edu","88%"],["TM","Thabo Mokoena","STU2024038","thabo.m@learn.edu","42%"],["LN","Lerato Ndlovu","STU2024051","lerato.n@learn.edu","56%"],["PK","Peter Khumalo","STU2024064","peter.k@learn.edu","39%"]].map((s,i)=>`<article><span class="student-initial ${i===1?'coral':''}">${s[0]}</span><div><strong>${s[1]} ${i===1?'<em>At risk</em>':''}</strong><small>${s[2]} · ${s[3]}</small></div><span class="roster-grade">${s[4]}</span><select aria-label="Attendance for ${s[1]}"><option>Present</option><option>Absent</option><option>Late</option></select></article>`).join("")}</div></section></div>`;
   if (section === "communication") return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING <span>›</span> COMMUNICATION</p><h1>Communication</h1><p>Keep your classes informed and respond to student questions.</p></div><button class="lecturer-action" data-lecturer-toast="Announcement composer opened">＋ New announcement</button></div><div class="lecturer-main-grid"><section class="lecturer-panel"><div class="lecturer-panel-heading"><div><span class="lecturer-eyebrow">STUDENT QUESTIONS</span><h2>Q&amp;A inbox</h2></div><span class="attention-count">3 new</span></div>${[["KM","Kagiso Mthembu","Could you clarify the analysis brief?","DATA210 · 12 min ago"],["SN","Sibongile Nkosi","Is the quiz open book?","UXD202 · 1 hour ago"],["JB","James Botha","Request for assignment extension","DATA210 · Yesterday"]].map(x=>`<article class="question-row"><span class="student-initial">${x[0]}</span><div><strong>${x[1]}</strong><p>${x[2]}</p><small>${x[3]}</small></div><button class="lecturer-link" data-lecturer-toast="Reply composer opened">Reply</button></article>`).join("")}</section><section class="lecturer-panel"><div class="lecturer-panel-heading"><div><span class="lecturer-eyebrow">RECENT UPDATE</span><h2>Announcements</h2></div></div><div class="announcement-card"><strong>Assignment 2 resources are live</strong><p>Posted to Data Analytics · Yesterday at 14:32</p><button class="lecturer-link" data-lecturer-toast="Announcement details opened">View announcement →</button></div></section></div></div>`;
@@ -1245,34 +1440,95 @@ function renderAdminSection(section) {
     reports: ["MANAGEMENT INSIGHTS", "Reports & analytics", "Explore academic, financial, and engagement performance."],
     settings: ["PLATFORM CONTROL", "Settings & security", "Configure integrations, access, backups, and audit visibility."]
   }[section] || ["ADMINISTRATION", "Overview", "Manage your institution."];
-  const intro = `<header class="admin-section-heading"><div><p class="admin-section-kicker">${heading[0]}</p><h1>${heading[1]}</h1><p>${heading[2]}</p></div><button class="admin-primary-button" data-admin-action="${escapeHTML(heading[1])}">＋ ${section === "users" ? "Add user" : section === "courses" ? "Add programme" : section === "communication" ? "New announcement" : "Create new"}</button></header>`;
+  const intro = `<header class="admin-section-heading"><div><p class="admin-section-kicker">${heading[0]}</p><h1>${heading[1]}</h1><p>${heading[2]}</p></div><button class="admin-primary-button" data-admin-action="${escapeHTML(heading[1])}" ${section === "users" ? 'id="admin-add-user"' : ""}>＋ ${section === "users" ? "Add user" : section === "courses" ? "Add programme" : section === "communication" ? "New announcement" : "Create new"}</button></header>`;
+  if (section === "users") return renderAdminUsersSection(intro);
+  if (section === "courses") return renderAdminCoursesSection(intro);
+  if (section === "admissions") return renderAdminAdmissionsSection(intro);
   if (section === "users") {
-    const rows = cachedUsers.map(user => `<tr><td><input type="checkbox" aria-label="Select ${escapeHTML(user.name||"user")}" /></td><td><span class="admin-table-person"><i>${escapeHTML(String(user.name||"U").split(/\s+/).map(v=>v[0]).slice(0,2).join("").toUpperCase())}</i><span><b>${escapeHTML(user.name||"User")}</b><small>${escapeHTML(user.email||"")}</small></span></span></td><td><span class="admin-role-pill">${escapeHTML(user.role||"learner")}</span></td><td>${escapeHTML(user.selectedCourse||user.department||"—")}</td><td><span class="admin-status ${user.status==="Inactive"?"is-inactive":""}">${escapeHTML(user.status||"Active")}</span></td><td><button class="admin-more-button" data-admin-action="Manage account · ${escapeHTML(user.name||user.email||"User")}" aria-label="Manage ${escapeHTML(user.name||"user")}">•••</button></td></tr>`).join("");
+    const rows = cachedUsers.map(user => `<tr><td><input type="checkbox" aria-label="Select ${escapeHTML(user.name||"user")}" /></td><td><span class="admin-table-person"><i>${escapeHTML(String(user.name||"U").split(/\s+/).map(v=>v[0]).slice(0,2).join("").toUpperCase())}</i><span><b>${escapeHTML(user.name||"User")}</b><small>${escapeHTML(user.email||"")}</small></span></span></td><td><span class="admin-role-pill">${escapeHTML(user.role||"learner")}</span></td><td>${escapeHTML(user.selectedCourse||user.department||"—")}</td><td><span class="admin-status ${user.status==="Inactive"?"is-inactive":""}">${escapeHTML(user.status||"Active")}</span></td><td><button class="admin-secondary-button" data-user-status="${escapeHTML(user.id||"")}" data-active="${user.status!=="Inactive"?"false":"true"}">${user.status==="Inactive"?"Reactivate":"Deactivate"}</button><select aria-label="Change user role" data-user-role="${escapeHTML(user.id||"")}"><option value="learner" ${user.role==="learner"?"selected":""}>Learner</option><option value="lecturer" ${user.role==="lecturer"?"selected":""}>Lecturer</option><option value="admin" ${user.role==="admin"?"selected":""}>Admin</option></select><button type="button" class="admin-inline-link" data-user-delete="${escapeHTML(user.id||"")}">Delete</button><button class="admin-more-button" data-admin-action="Manage account · ${escapeHTML(user.name||user.email||"User")}" aria-label="Manage ${escapeHTML(user.name||"user")}">•••</button></td></tr>`).join("");
     return `<div class="admin-workspace">${intro}<section class="admin-panel admin-management-panel"><div class="admin-toolbar"><div class="admin-tab-row"><button class="selected">All users <b>${cachedUsers.length}</b></button><button>Students</button><button>Lecturers <b>12</b></button><button>Admins</button></div><div class="admin-toolbar-controls"><input type="search" class="admin-table-search" placeholder="Search name or email" aria-label="Search users" /><select aria-label="Filter by status"><option>All statuses</option><option>Active</option><option>Inactive</option></select><button class="admin-secondary-button" data-admin-action="Import users from Excel">↑ Import</button><button class="admin-secondary-button" data-admin-action="Export users">↓ Export</button></div></div><div class="admin-bulk-row"><label><input type="checkbox" class="admin-select-all" /> Select all</label><button data-admin-action="Assign selected users to a course">Assign to course</button><button data-admin-action="Suspend selected users" class="danger-link">Suspend</button><span>Student account tools · lecturers require approval before course access</span></div><div class="admin-table-wrap"><table class="admin-data-table admin-users-table"><thead><tr><th></th><th>Name &amp; email</th><th>Role</th><th>Programme / Faculty</th><th>Status</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="admin-empty-row">No users match this filter.</td></tr>'}</tbody></table></div><footer class="admin-pagination"><span>Showing ${cachedUsers.length ? 1 : 0}–${cachedUsers.length} of ${cachedUsers.length} accounts</span><div><button disabled>‹</button><button class="selected">1</button><button disabled>›</button></div></footer></section><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">LECTURER WORKFLOW</span><h2>Applications to review <span class="attention-count">12</span></h2><p class="admin-muted">Verify credentials and assign subjects before approval.</p><button class="admin-secondary-button" data-admin-action="Review lecturer applications">Review applications →</button></section><section class="admin-panel"><span class="admin-section-kicker">ACCESS CONTROL</span><h2>Roles &amp; permissions</h2><div class="permission-matrix"><span>Capability</span><b>Admin</b><b>Finance</b><b>Support</b><span>Manage users</span><b>✓</b><b>Limited</b><b>Limited</b><span>View finance</span><b>✓</b><b>✓</b><b>—</b><span>Handle tickets</span><b>✓</b><b>—</b><b>✓</b></div></section></div></div>`;
   }
-  if (section === "courses") return `<div class="admin-workspace">${intro}<div class="admin-stat-strip"><article><small>Faculties</small><b>6</b></article><article><small>Programmes</small><b>14</b></article><article><small>Active courses</small><b>68</b></article><article><small>Terms</small><b>2</b></article></div><section class="admin-panel"><div class="admin-toolbar"><div class="admin-tab-row"><button class="selected">Course catalogue</button><button>Faculties</button><button>Departments</button><button>Programmes</button><button>Terms</button></div><input type="search" class="admin-table-search" placeholder="Search courses" aria-label="Search courses" /></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Course</th><th>Programme</th><th>Lead lecturer</th><th>Learners</th><th>Status</th><th></th></tr></thead><tbody>${cachedCourses.map(course=>`<tr><td><b>${escapeHTML(course.code||"COURSE")}</b><small class="admin-cell-sub">${escapeHTML(course.title||"")}</small></td><td>${escapeHTML(course.programme||"Certificate programme")}</td><td>${escapeHTML(course.instructor||"Unassigned")}</td><td>${Number(course.students)||0}</td><td><span class="admin-status">Active</span></td><td><button class="admin-more-button" data-admin-action="Edit course · ${escapeHTML(course.code||course.title||"")}">•••</button></td></tr>`).join("")||'<tr><td colspan="6" class="admin-empty-row">No courses available.</td></tr>'}</tbody></table></div></section><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">CURRENT TERM</span><h2>Semester 2 · 2026</h2><p class="admin-muted">13 July – 27 November 2026 · Registration closes 31 July</p><button class="admin-secondary-button" data-admin-action="Manage academic terms">Manage terms</button></section><section class="admin-panel"><span class="admin-section-kicker">CURRICULUM</span><h2>Programme structure</h2><p class="admin-muted">Review modules, prerequisites, and learning outcomes by programme.</p><button class="admin-secondary-button" data-admin-action="Open curriculum structure">View curriculum →</button></section></div></div>`;
+  if (section === "courses") return `<div class="admin-workspace">${intro}<section class="admin-panel"><h2>Courses awaiting approval</h2>${cachedCourses.filter(c=>c.status==="pending").map(c=>`<article class="admin-review-row"><span><b>${escapeHTML(c.title)}</b><small>${escapeHTML(c.code)} &middot; ${escapeHTML(c.instructor||"")}</small></span><button data-course-decision="${escapeHTML(c.id)}" data-approved="true">Approve</button><button data-course-decision="${escapeHTML(c.id)}" data-approved="false">Reject</button></article>`).join("")||'<p class="admin-muted">No courses are waiting for approval.</p>'}</section><section class="admin-panel"><h2>Manage course enrolments</h2><form id="admin-enrollment-form" class="admin-broadcast-form"><label>Learner<select name="userId" required>${cachedUsers.filter(u=>u.role==="learner"&&u.status!=="Inactive").map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(u.name)} &middot; ${escapeHTML(u.email)}</option>`).join("")}</select></label><label>Course<select name="courseId" required>${cachedCourses.filter(c=>!["pending","rejected","archived"].includes(c.status)).map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Action<select name="action"><option value="enroll">Enroll</option><option value="remove">Remove</option></select></label><button class="admin-primary-button" type="submit">Update enrolment</button></form></section><div class="admin-stat-strip"><article><small>Faculties</small><b>6</b></article><article><small>Programmes</small><b>14</b></article><article><small>Active courses</small><b>68</b></article><article><small>Terms</small><b>2</b></article></div><section class="admin-panel"><div class="admin-toolbar"><div class="admin-tab-row"><button class="selected">Course catalogue</button><button>Faculties</button><button>Departments</button><button>Programmes</button><button>Terms</button></div><input type="search" class="admin-table-search" placeholder="Search courses" aria-label="Search courses" /></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Course</th><th>Programme</th><th>Lead lecturer</th><th>Learners</th><th>Status</th><th></th></tr></thead><tbody>${cachedCourses.map(course=>`<tr><td><b>${escapeHTML(course.code||"COURSE")}</b><small class="admin-cell-sub">${escapeHTML(course.title||"")}</small></td><td>${escapeHTML(course.programme||"Certificate programme")}</td><td>${escapeHTML(course.instructor||"Unassigned")}</td><td>${Number(course.students)||0}</td><td><span class="admin-status ${course.status==="pending"?"pending-status":""}">${escapeHTML(course.status||"Active")}</span></td><td><button type="button" class="admin-inline-link" data-course-reassign="${escapeHTML(course.id)}">Reassign</button><button type="button" class="admin-inline-link" data-course-archive="${escapeHTML(course.id)}">Archive</button></td></tr>`).join("")||'<tr><td colspan="6" class="admin-empty-row">No courses available.</td></tr>'}</tbody></table></div></section><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">CURRENT TERM</span><h2>Semester 2 · 2026</h2><p class="admin-muted">13 July – 27 November 2026 · Registration closes 31 July</p><button class="admin-secondary-button" data-admin-action="Manage academic terms">Manage terms</button></section><section class="admin-panel"><span class="admin-section-kicker">CURRICULUM</span><h2>Programme structure</h2><p class="admin-muted">Review modules, prerequisites, and learning outcomes by programme.</p><button class="admin-secondary-button" data-admin-action="Open curriculum structure">View curriculum →</button></section></div></div>`;
   if (section === "content") return `<div class="admin-workspace">${intro}<div class="admin-stat-strip"><article><small>Awaiting review</small><b>4</b></article><article><small>Flagged by system</small><b class="text-coral">2</b></article><article><small>Approved this month</small><b>126</b></article><article><small>Storage used</small><b>720 GB</b></article></div><div class="admin-split-grid"><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">REVIEW QUEUE</span><h2>Recently uploaded resources</h2></div><select><option>All types</option><option>Video</option><option>PDF</option></select></div>${[["Video","Introduction to data visualisation","DATA210 · 248 MB · uploaded by S. Chen","Flagged: audio quality"],["PDF","Learner assessment guide","SDEV101 · 4.2 MB · uploaded by N. Dlamini","Ready for review"],["Video","Building accessible web forms","WEB220 · 186 MB · uploaded by P. Naidoo","Ready for review"]].map((r,i)=>`<article class="admin-review-row"><span class="resource-type-icon">${r[0]==="Video"?"▶":"▤"}</span><span><b>${r[1]}</b><small>${r[2]}</small><em>${r[3]}</em></span><button data-admin-action="Approve content · ${r[1]}">Approve</button><button data-admin-action="Reject content · ${r[1]}">Reject</button></article>`).join("")}</section><section class="admin-panel"><span class="admin-section-kicker">STORAGE BY COURSE</span><h2>Largest data usage</h2><p class="admin-muted">Total allocation: 1 TB</p>${[["Software Developer",86],["Data Science Practitioner",68],["Cybersecurity Analyst",51],["Project Management",34]].map(x=>`<div class="storage-course-row"><span>${x[0]}</span><b>${x[1]} GB</b><i><em style="width:${x[1]}%"></em></i></div>`).join("")}<button class="admin-secondary-button" data-admin-action="Open storage report">Storage report →</button></section></div></div>`;
   if (section === "assessments") return `<div class="admin-workspace">${intro}<div class="admin-stat-strip"><article><small>Awaiting approval</small><b>6</b></article><article><small>Results ready to lock</small><b>3</b></article><article><small>Pass mark</small><b>50%</b></article><article><small>Distinction</small><b>75%</b></article></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">CROSS-COURSE CONTROL</span><h2>Gradebooks</h2><p>Grade changes require a reason and are recorded in the audit log.</p></div><button class="admin-secondary-button" data-admin-action="Export gradebook report">↓ Export</button></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Assessment</th><th>Course</th><th>Submissions</th><th>Average</th><th>Results</th><th></th></tr></thead><tbody>${cachedAssignments.slice(0,8).map((a,i)=>`<tr><td><b>${escapeHTML(a.title||"Assessment")}</b></td><td>${escapeHTML(a.course||"Course")}</td><td>${18+i*3} / ${34+i*4}</td><td>${62+i*3}%</td><td><span class="admin-status">${i<2?"Ready to lock":"Marking"}</span></td><td><button data-admin-action="Override grade · ${escapeHTML(a.title||"Assessment")}" class="admin-inline-link">Override</button> <button data-admin-action="Lock results · ${escapeHTML(a.title||"Assessment")}" class="admin-inline-link">Lock</button></td></tr>`).join("")||'<tr><td colspan="6" class="admin-empty-row">No gradebooks available.</td></tr>'}</tbody></table></div></section><section class="admin-panel grading-policy"><div><span class="admin-section-kicker">GLOBAL GRADING POLICY</span><h2>Institution thresholds</h2><p class="admin-muted">Applies to new assessments across all programmes.</p></div><label>Pass mark <span><input type="number" value="50" min="0" max="100" /> %</span></label><label>Distinction <span><input type="number" value="75" min="0" max="100" /> %</span></label><button class="admin-primary-button" data-admin-action="Save global grading policy">Save policy</button></section></div>`;
   if (section === "admissions") return `<div class="admin-workspace">${intro}<div class="admin-stat-strip"><article><small>New applications</small><b>12</b></article><article><small>Documents to verify</small><b>7</b></article><article><small>Pending registration</small><b>23</b></article><article><small>Intake</small><b>Jan 2027</b></article></div><section class="admin-panel"><div class="admin-toolbar"><div class="admin-tab-row"><button class="selected">Applications <b>12</b></button><button>Enrolments</button><button>Progression</button></div><input type="search" class="admin-table-search" placeholder="Search applicants" /></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Applicant</th><th>Programme</th><th>Submitted</th><th>Documents</th><th>Status</th><th></th></tr></thead><tbody>${[["Nomsa Dlamini","Software Developer","18 Oct","Complete"],["Kabelo Mokoena","Data Science Practitioner","17 Oct","ID required"],["Ayesha Patel","Cybersecurity Analyst","17 Oct","Complete"],["Lunga Ndlovu","Project Manager","16 Oct","Complete"]].map(row=>`<tr><td><b>${row[0]}</b><small class="admin-cell-sub">${row[0].split(" ")[0].toLowerCase()}@student.edu</small></td><td>${row[1]}</td><td>${row[2]} 2026</td><td>${row[3]}</td><td><span class="admin-status pending-status">Review</span></td><td><button class="admin-inline-link" data-admin-action="Review application · ${row[0]}">Review →</button></td></tr>`).join("")}</tbody></table></div></section></div>`;
   if (section === "attendance") return `<div class="admin-workspace">${intro}<div class="admin-stat-strip"><article><small>Institution attendance</small><b>86%</b></article><article><small>Below 80% threshold</small><b class="text-coral">38</b></article><article><small>Open discipline cases</small><b>5</b></article><article><small>Registers submitted</small><b>94%</b></article></div><div class="admin-split-grid"><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">ATTENDANCE WATCH</span><h2>Students needing follow-up</h2></div><button data-admin-action="Export DHET attendance register">↓ DHET / QCTO</button></div>${[["TM","Thabo Mokoena","Software Developer","62%"],["LN","Lerato Ndlovu","Data Science Practitioner","71%"],["PK","Peter Khumalo","Cybersecurity Analyst","76%"]].map((x,i)=>`<article class="admin-review-row"><span class="student-initial ${i===0?"coral":""}">${x[0]}</span><span><b>${x[1]}</b><small>${x[2]} · below 80% attendance</small></span><strong class="text-coral">${x[3]}</strong><button data-admin-action="Contact learner · ${x[1]}">Follow up</button></article>`).join("")}</section><section class="admin-panel"><span class="admin-section-kicker">DISCIPLINE &amp; WELLBEING</span><h2>Case management</h2><p class="admin-muted">Record a warning, assign a case owner, or review suspension history.</p><button class="admin-primary-button" data-admin-action="Create discipline case">＋ New case</button><div class="admin-audit-row"><i class="priority-icon amber-bg">!</i><span><b>Academic integrity review</b><small>Support Admin · opened 16 Oct · Medium priority</small></span></div><div class="admin-audit-row"><i class="priority-icon coral-bg">!</i><span><b>Repeated absence warning</b><small>Finance Admin · opened 15 Oct · High priority</small></span></div></section></div></div>`;
-  if (section === "communication") return `<div class="admin-workspace">${intro}<div class="admin-split-grid communication-layout"><section class="admin-panel"><span class="admin-section-kicker">BROADCAST MESSAGE</span><h2>Reach your community</h2><p class="admin-muted">Send an announcement by email, SMS, or in-app notification.</p><form id="admin-broadcast-form" class="admin-broadcast-form"><label>Audience<select><option>All students</option><option>All lecturers</option><option>One faculty</option></select></label><label>Faculty<select><option>All faculties</option><option>Technology</option><option>Business</option><option>Creative Industries</option></select></label><label>Delivery<select><option>Email + in-app</option><option>SMS</option><option>Push notification</option></select></label><label>Subject<input required placeholder="e.g. Semester registration closes Friday" /></label><label>Message<textarea required rows="4" placeholder="Write a clear announcement…"></textarea></label><button class="admin-primary-button" type="submit">Send announcement →</button></form></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">SUPPORT INBOX</span><h2>Open complaints <span class="attention-count">8</span></h2></div><select><option>All priorities</option><option>Urgent</option></select></div>${[["AM","Ayesha Mohamed","Unable to access assessment feedback","Urgent · 24 min"],["TM","Thabo Mokoena","Request to update registered programme","Normal · 2 hours"],["SN","Sibongile Nkosi","Certificate name spelling correction","Normal · Yesterday"]].map(x=>`<article class="admin-ticket-row"><span class="student-initial">${x[0]}</span><span><b>${x[1]}</b><small>${x[2]}</small><em>${x[3]}</em></span><button data-admin-action="Open support ticket · ${x[1]}">Open</button></article>`).join("")}<button class="admin-secondary-button" data-admin-action="Open all support tickets">View all tickets →</button></section></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">RECENT ANNOUNCEMENTS</span><h2>System notices</h2></div><button data-admin-action="Moderate chat logs">Moderate chat logs</button></div><div class="announcement-card"><strong>Planned maintenance · Saturday 24 October</strong><p>Sent to all learners and lecturers · 18 Oct 2026</p></div></section></div>`;
+  if (section === "communication") return `<div class="admin-workspace">${intro}<div class="admin-split-grid communication-layout"><section class="admin-panel"><span class="admin-section-kicker">BROADCAST MESSAGE</span><h2>Reach your community</h2><p class="admin-muted">Send an announcement by email, SMS, or in-app notification.</p><form id="admin-broadcast-form" class="admin-broadcast-form"><label>Audience<select name="audience"><option value="all">All users</option><option value="learner">Learners</option><option value="lecturer">Lecturers</option></select></label><label>Faculty<select><option>All faculties</option><option>Technology</option><option>Business</option><option>Creative Industries</option></select></label><label>Delivery<select><option>Email + in-app</option><option>SMS</option><option>Push notification</option></select></label><label>Subject<input name="title" required placeholder="e.g. Semester registration closes Friday" /></label><label>Message<textarea required rows="4" name="message" placeholder="Write a clear announcement…"></textarea></label><button class="admin-primary-button" type="submit">Send announcement →</button></form></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">SUPPORT INBOX</span><h2>Open complaints <span class="attention-count">8</span></h2></div><select><option>All priorities</option><option>Urgent</option></select></div>${[["AM","Ayesha Mohamed","Unable to access assessment feedback","Urgent · 24 min"],["TM","Thabo Mokoena","Request to update registered programme","Normal · 2 hours"],["SN","Sibongile Nkosi","Certificate name spelling correction","Normal · Yesterday"]].map(x=>`<article class="admin-ticket-row"><span class="student-initial">${x[0]}</span><span><b>${x[1]}</b><small>${x[2]}</small><em>${x[3]}</em></span><button data-admin-action="Open support ticket · ${x[1]}">Open</button></article>`).join("")}<button class="admin-secondary-button" data-admin-action="Open all support tickets">View all tickets →</button></section></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">RECENT ANNOUNCEMENTS</span><h2>System notices</h2></div><button data-admin-action="Moderate chat logs">Moderate chat logs</button></div><div class="announcement-card"><strong>Planned maintenance · Saturday 24 October</strong><p>Sent to all learners and lecturers · 18 Oct 2026</p></div></section></div>`;
   if (section === "reports") return `<div class="admin-workspace">${intro}<div class="admin-report-toolbar"><label>Date range<select><option>Last 30 days</option><option>This semester</option><option>Year to date</option></select></label><button class="admin-secondary-button" data-admin-action="Export analytics to Excel">↓ Excel</button><button class="admin-secondary-button" data-admin-action="Export analytics to PDF">↓ PDF</button></div><div class="admin-stat-strip"><article><small>Pass rate</small><b>78.4%</b><em>Academic</em></article><article><small>Dropout rate</small><b>6.2%</b><em>↓ 1.1% this term</em></article><article><small>Daily active users</small><b>1,086</b><em>Engagement</em></article><article><small>Monthly income</small><b>R125,000</b><em>Financial</em></article></div><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">ACADEMIC OUTCOMES</span><h2>Pass rate by programme</h2><div class="report-bars">${[["Software Developer",78],["Data Science",84],["Cybersecurity",71],["Project Management",88],["UX Design",74]].map(x=>`<div><span>${x[0]}</span><i><b style="width:${x[1]}%"></b></i><strong>${x[1]}%</strong></div>`).join("")}</div></section><section class="admin-panel"><span class="admin-section-kicker">ENGAGEMENT</span><h2>Most watched this month</h2>${[["Data visualisation fundamentals","2,840 views"],["Python: working with data","2,210 views"],["Accessible interface patterns","1,940 views"]].map(x=>`<div class="admin-audit-row"><i class="blue-bg">▶</i><span><b>${x[0]}</b><small>${x[1]}</small></span></div>`).join("")}</section></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">SECURITY AUDIT</span><h2>Recent sign-ins &amp; changes</h2><p>Review who accessed the LMS and who changed marks.</p></div><button data-admin-page="settings">Search audit trail →</button></div>${cachedAudit.slice(0,5).map(x=>`<div class="admin-audit-row"><i>✓</i><span><b>${escapeHTML(x.action||"Sign in")}</b><small>${escapeHTML(x.user||"System")} · ${escapeHTML(x.time||"")}</small></span></div>`).join("")||'<div class="admin-empty-row">No audit events available.</div>'}</section></div>`;
-  if (section === "settings") return `<div class="admin-workspace">${intro}<div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">PLATFORM SECURITY</span><h2>Access &amp; security</h2><label class="admin-setting-toggle"><span><b>Enforce two-factor authentication</b><small>Require 2FA for all administrator accounts</small></span><input type="checkbox" checked /></label><label class="admin-setting-toggle"><span><b>New device sign-in alerts</b><small>Notify admins when an unknown device signs in</small></span><input type="checkbox" checked /></label><label class="admin-setting-toggle"><span><b>IP allowlist</b><small>Restrict admin access to approved networks</small></span><input type="checkbox" /></label><button class="admin-secondary-button" data-admin-action="Manage blocked IP addresses">Manage blocked IPs</button></section><section class="admin-panel"><span class="admin-section-kicker">CONNECTED SERVICES</span><h2>Integrations</h2>${[["Zoom","Connected"],["Google Meet","Connected"],["Paystack","Not connected"],["PayFast","Not connected"]].map(x=>`<div class="integration-row"><span><b>${x[0]}</b><small>API credentials stored securely</small></span><span class="admin-status ${x[1]==="Not connected"?"is-inactive":""}">${x[1]}</span><button class="admin-inline-link" data-admin-action="Configure ${x[0]} integration">${x[1]==="Connected"?"Manage":"Connect"}</button></div>`).join("")}</section></div><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">BACKUP &amp; BRANDING</span><h2>Institution settings</h2><label class="admin-form-field">Institution name<input value="Chimera Learning" /></label><label class="admin-form-field">Primary domain<input value="learn.chimera.ac.za" /></label><div class="admin-inline-actions"><button class="admin-secondary-button" data-admin-action="Upload institution logo">Upload logo</button><button class="admin-secondary-button" data-admin-action="Create system backup">Create backup</button><button class="admin-secondary-button" data-admin-action="Restore system backup">Restore</button></div></section><section class="admin-panel"><span class="admin-section-kicker">ROLE-AWARE ACCESS</span><h2>Sub-administrator views</h2><div class="subadmin-preview"><b>Finance Admin</b><span>Overview · Reports · Fees · limited user records</span></div><div class="subadmin-preview"><b>Support Admin</b><span>Overview · Students · Attendance · Communication</span></div><button class="admin-primary-button" data-admin-action="Create sub-administrator">＋ Create sub-admin</button></section></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">IMMUTABLE ACTIVITY RECORD</span><h2>Audit trail</h2><p>Every administrative action is searchable and attributable.</p></div><input type="search" class="admin-table-search" placeholder="Search audit events" /></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Status</th></tr></thead><tbody>${cachedAudit.map(x=>`<tr><td>${escapeHTML(x.time||"—")}</td><td>${escapeHTML(x.user||"System")}</td><td>${escapeHTML(x.action||"—")}</td><td><span class="admin-status">${escapeHTML(x.status||"Success")}</span></td></tr>`).join("")||'<tr><td colspan="4" class="admin-empty-row">No activity recorded yet.</td></tr>'}</tbody></table></div></section></div>`;
+  if (section === "settings") return `<div class="admin-workspace">${intro}<div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">PLATFORM SECURITY</span><h2>Access &amp; security</h2><label class="admin-setting-toggle"><span><b>Enforce two-factor authentication</b><small>Require 2FA for all administrator accounts</small></span><input type="checkbox" checked /></label><label class="admin-setting-toggle"><span><b>New device sign-in alerts</b><small>Notify admins when an unknown device signs in</small></span><input type="checkbox" checked /></label><label class="admin-setting-toggle"><span><b>IP allowlist</b><small>Restrict admin access to approved networks</small></span><input type="checkbox" /></label><button class="admin-secondary-button" data-admin-action="Manage blocked IP addresses">Manage blocked IPs</button></section><section class="admin-panel"><span class="admin-section-kicker">CONNECTED SERVICES</span><h2>Integrations</h2>${[["Zoom","Connected"],["Google Meet","Connected"],["Paystack","Not connected"],["PayFast","Not connected"]].map(x=>`<div class="integration-row"><span><b>${x[0]}</b><small>API credentials stored securely</small></span><span class="admin-status ${x[1]==="Not connected"?"is-inactive":""}">${x[1]}</span><button class="admin-inline-link" data-admin-action="Configure ${x[0]} integration">${x[1]==="Connected"?"Manage":"Connect"}</button></div>`).join("")}</section></div><div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">BACKUP &amp; BRANDING</span><h2>Institution settings</h2><label class="admin-form-field">Institution name<input value="Chimera Learning" /></label><label class="admin-form-field">Primary domain<input value="learn.chimera.ac.za" /></label><div class="admin-inline-actions"><button class="admin-secondary-button" data-admin-action="Upload institution logo">Upload logo</button><button class="admin-secondary-button" data-admin-action="Create system backup">Create backup</button><button class="admin-secondary-button" data-admin-action="Restore system backup">Restore</button></div></section><section class="admin-panel"><span class="admin-section-kicker">ROLE-AWARE ACCESS</span><h2>Sub-administrator views</h2><div class="subadmin-preview"><b>Finance Admin</b><span>Overview · Reports · Fees · limited user records</span></div><div class="subadmin-preview"><b>Support Admin</b><span>Overview · Students · Attendance · Communication</span></div><button class="admin-primary-button" data-admin-action="Create sub-administrator">＋ Create sub-admin</button></section></div><section class="admin-panel"><div class="admin-panel-heading"><div><span class="admin-section-kicker">IMMUTABLE ACTIVITY RECORD</span><h2>Audit trail</h2><p>Every administrative action is searchable and attributable.</p></div><select id="audit-role-filter" aria-label="Filter activity by role"><option value="all">All roles</option><option value="learner">Learners</option><option value="lecturer">Lecturers</option><option value="admin">Admins</option></select><input type="search" class="admin-table-search" placeholder="Search audit events" /></div><div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Time</th><th>Role</th><th>Administrator</th><th>Action</th><th>Status</th></tr></thead><tbody>${cachedAudit.map(x=>`<tr><td>${escapeHTML(x.time||"—")}</td><td>${escapeHTML(x.role||"—")}</td><td>${escapeHTML(x.user||"System")}</td><td>${escapeHTML(x.action||"—")}</td><td><span class="admin-status">${escapeHTML(x.status||"Success")}</span></td></tr>`).join("")||'<tr><td colspan="5" class="admin-empty-row">No activity recorded yet.</td></tr>'}</tbody></table></div></section></div>`;
   return `<div class="admin-workspace">${intro}<section class="admin-panel"><p class="admin-empty-row">Choose an admin workspace from the navigation.</p></section></div>`;
+}
+
+function adminViewTabs(group, options, active) {
+  return '<div class="admin-tab-row" role="tablist">' + options.map(([value, label]) => '<button type="button" role="tab" aria-selected="' + (active === value) + '" class="' + (active === value ? 'selected' : '') + '" data-admin-view="' + group + ':' + value + '">' + label + '</button>').join('') + '</div>';
+}
+
+function renderAdminUsersSection(intro) {
+  const view = adminSectionView.users;
+  const counts = { all: cachedUsers.length, students: cachedUsers.filter(user => user.role === "learner").length, lecturers: cachedUsers.filter(user => user.role === "lecturer").length, admins: cachedUsers.filter(user => user.role === "admin").length };
+  const users = cachedUsers.filter(user => view === "all" || (view === "students" ? user.role === "learner" : user.role === view.slice(0, -1)));
+  const tabs = adminViewTabs("users", [["all", "All users <b>" + counts.all + "</b>"], ["students", "Students <b>" + counts.students + "</b>"], ["lecturers", "Lecturers <b>" + counts.lecturers + "</b>"], ["admins", "Admins <b>" + counts.admins + "</b>"]], view);
+  const rows = users.map(user => '<tr data-user-role-filter="' + escapeHTML(user.role || "learner") + '" data-user-status-filter="' + escapeHTML(user.status || "Active") + '"><td><input type="checkbox" aria-label="Select user" /></td><td><span class="admin-table-person"><i>' + escapeHTML(String(user.name || "U").split(/\s+/).map(value => value[0]).slice(0, 2).join("").toUpperCase()) + '</i><span><b>' + escapeHTML(user.name || "User") + '</b><small>' + escapeHTML(user.email || "") + '</small></span></span></td><td><span class="admin-role-pill">' + escapeHTML(user.role || "learner") + '</span></td><td>' + escapeHTML(user.selectedCourse || user.department || "—") + '</td><td><span class="admin-status ' + (user.status === "Inactive" ? "is-inactive" : "") + '">' + escapeHTML(user.status || "Active") + '</span></td><td><button class="admin-secondary-button" data-user-status="' + escapeHTML(user.id || "") + '" data-active="' + (user.status === "Inactive" ? "true" : "false") + '">' + (user.status === "Inactive" ? "Reactivate" : "Deactivate") + '</button> <select aria-label="Change user role" data-user-role="' + escapeHTML(user.id || "") + '"><option value="learner" ' + (user.role === "learner" ? "selected" : "") + '>Learner</option><option value="lecturer" ' + (user.role === "lecturer" ? "selected" : "") + '>Lecturer</option><option value="admin" ' + (user.role === "admin" ? "selected" : "") + '>Admin</option></select> <button type="button" class="admin-inline-link" data-user-delete="' + escapeHTML(user.id || "") + '">Delete</button></td></tr>').join("");
+  const workflowPanels = '<div class="admin-split-grid"><section class="admin-panel"><span class="admin-section-kicker">LECTURER WORKFLOW</span><h2>Applications to review</h2><p class="admin-muted">Verify credentials and assign subjects before approval.</p><button class="admin-secondary-button" data-admin-action="Review lecturer applications">Review applications →</button></section><section class="admin-panel"><span class="admin-section-kicker">ACCESS CONTROL</span><h2>Roles &amp; permissions</h2><div class="permission-matrix"><span>Capability</span><b>Admin</b><b>Finance</b><b>Support</b><span>Manage users</span><b>✓</b><b>Limited</b><b>Limited</b><span>View finance</span><b>✓</b><b>✓</b><b>—</b><span>Handle tickets</span><b>✓</b><b>—</b><b>✓</b></div></section></div>';
+  return '<div class="admin-workspace">' + intro + '<section class="admin-panel admin-management-panel"><div class="admin-toolbar">' + tabs + '<div class="admin-toolbar-controls"><input type="search" class="admin-table-search" data-user-search placeholder="Search name or email" aria-label="Search users" /><select data-user-status-filter-select aria-label="Filter by status"><option value="all">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div></div><div class="admin-bulk-row"><label><input type="checkbox" class="admin-select-all" /> Select all</label><span>Showing ' + users.length + ' ' + (view === "all" ? "accounts" : view) + '</span></div><div class="admin-table-wrap"><table class="admin-data-table admin-users-table"><thead><tr><th></th><th>Name &amp; email</th><th>Role</th><th>Programme / Faculty</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + (rows || '<tr><td colspan="6" class="admin-empty-row">No users in this role.</td></tr>') + '</tbody></table></div></section>' + workflowPanels + '</div>';
+}
+
+function renderAdminCoursesSection(intro) {
+  const view = adminSectionView.courses;
+  const tabs = adminViewTabs("courses", [["catalogue", "Course catalogue"], ["faculties", "Faculties"], ["departments", "Departments"], ["programmes", "Programmes"], ["terms", "Terms"]], view);
+  const pending = cachedCourses.filter(course => course.status === "pending");
+  const pendingPanel = '<section class="admin-panel"><h2>Courses awaiting approval</h2>' + (pending.map(course => '<article class="admin-review-row"><span><b>' + escapeHTML(course.title) + '</b><small>' + escapeHTML(course.code || "") + ' · ' + escapeHTML(course.instructor || "") + '</small></span><button data-course-decision="' + escapeHTML(course.id) + '" data-approved="true">Approve</button><button data-course-decision="' + escapeHTML(course.id) + '" data-approved="false">Reject</button></article>').join("") || '<p class="admin-muted">No courses are waiting for approval.</p>') + '</section>';
+  const learnerOptions = cachedUsers.filter(user => user.role === "learner" && user.status !== "Inactive").map(user => '<option value="' + escapeHTML(user.id) + '">' + escapeHTML(user.name) + ' · ' + escapeHTML(user.email) + '</option>').join("");
+  const courseOptions = cachedCourses.filter(course => !["pending", "rejected", "archived"].includes(course.status)).map(course => '<option value="' + escapeHTML(course.id) + '">' + escapeHTML(course.title) + '</option>').join("");
+  const enrolmentPanel = '<section class="admin-panel"><h2>Manage course enrolments</h2><form id="admin-enrollment-form" class="admin-broadcast-form"><label>Learner<select name="userId" required>' + learnerOptions + '</select></label><label>Course<select name="courseId" required>' + courseOptions + '</select></label><label>Action<select name="action"><option value="enroll">Enroll</option><option value="remove">Remove</option></select></label><button class="admin-primary-button" type="submit">Update enrolment</button></form></section>';
+  let body = "";
+  if (view === "catalogue") {
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Course</th><th>Programme</th><th>Lead lecturer</th><th>Learners</th><th>Status</th><th></th></tr></thead><tbody>' + (cachedCourses.map(course => '<tr><td><b>' + escapeHTML(course.code || "COURSE") + '</b><small class="admin-cell-sub">' + escapeHTML(course.title || "") + '</small></td><td>' + escapeHTML(course.programme || "Certificate programme") + '</td><td>' + escapeHTML(course.instructor || "Unassigned") + '</td><td>' + (Number(course.students) || 0) + '</td><td><span class="admin-status">' + escapeHTML(course.status || "Active") + '</span></td><td><button type="button" class="admin-inline-link" data-course-reassign="' + escapeHTML(course.id) + '">Reassign</button> <button type="button" class="admin-inline-link" data-course-archive="' + escapeHTML(course.id) + '">Archive</button></td></tr>').join("") || '<tr><td colspan="6" class="admin-empty-row">No courses available.</td></tr>') + '</tbody></table></div>';
+  } else if (view === "programmes") {
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Programme</th><th>Code</th><th>Learning modules</th><th>Learners</th><th>Status</th></tr></thead><tbody>' + (cachedCourses.map(course => '<tr><td><b>' + escapeHTML(course.title || "Untitled programme") + '</b></td><td>' + escapeHTML(course.code || "—") + '</td><td>' + Object.values(course.modules || {}).reduce((sum, group) => sum + group.length, 0) + '</td><td>' + (Number(course.students) || 0) + '</td><td>' + escapeHTML(course.status || "Active") + '</td></tr>').join("") || '<tr><td colspan="5" class="admin-empty-row">No programmes available.</td></tr>') + '</tbody></table></div>';
+  } else if (view === "terms") {
+    body = '<div class="admin-stat-strip"><article><small>Current term</small><b>Semester 2 · 2026</b></article><article><small>Term dates</small><b>13 Jul – 27 Nov</b></article><article><small>Registration closes</small><b>31 July 2026</b></article><article><small>Active courses</small><b>' + cachedCourses.filter(course => course.status !== "archived").length + '</b></article></div><p class="admin-muted">Academic term information for the current course catalogue.</p>';
+  } else {
+    const field = view === "faculties" ? "faculty" : "department";
+    const groups = new Map();
+    cachedCourses.forEach(course => { const label = String(course[field] || "Unassigned"); if (!groups.has(label)) groups.set(label, []); groups.get(label).push(course); });
+    const rows = Array.from(groups.entries()).map(([name, courses]) => '<tr><td><b>' + escapeHTML(name) + '</b></td><td>' + courses.length + '</td><td>' + courses.reduce((sum, course) => sum + (Number(course.students) || 0), 0) + '</td><td>' + courses.map(course => escapeHTML(course.title)).join(", ") + '</td></tr>').join("");
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>' + (view === "faculties" ? "Faculty" : "Department") + '</th><th>Courses</th><th>Learners</th><th>Programmes / courses</th></tr></thead><tbody>' + (rows || '<tr><td colspan="4" class="admin-empty-row">No academic groups available.</td></tr>') + '</tbody></table></div><p class="admin-muted">These lists use the faculty and department fields assigned to courses. Courses without those fields appear as Unassigned.</p>';
+  }
+  return '<div class="admin-workspace">' + intro + pendingPanel + enrolmentPanel + '<section class="admin-panel"><div class="admin-toolbar">' + tabs + (view === "catalogue" ? '<input type="search" class="admin-table-search" placeholder="Search courses" aria-label="Search courses" />' : "") + '</div>' + body + '</section></div>';
+}
+
+function renderAdminAdmissionsSection(intro) {
+  const view = adminSectionView.admissions;
+  const tabs = adminViewTabs("admissions", [["applications", "Applications"], ["enrolments", "Enrolments"], ["progression", "Progression"]], view);
+  let body = "";
+  if (view === "applications") {
+    const learners = cachedUsers.filter(user => user.role === "learner" && user.selectedCourse);
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Applicant</th><th>Programme</th><th>Submitted</th><th>Account</th><th>Status</th></tr></thead><tbody>' + (learners.map(user => '<tr><td><b>' + escapeHTML(user.name) + '</b><small class="admin-cell-sub">' + escapeHTML(user.email) + '</small></td><td>' + escapeHTML(user.selectedCourse) + '</td><td>' + (user.lastLogin ? new Date(user.lastLogin).toLocaleDateString("en-ZA") : "—") + '</td><td>' + escapeHTML(user.status || "Active") + '</td><td><span class="admin-status">' + (user.status === "Inactive" ? "Inactive" : "Registered") + '</span></td></tr>').join("") || '<tr><td colspan="5" class="admin-empty-row">No learner applications are available.</td></tr>') + '</tbody></table></div>';
+  } else if (view === "enrolments") {
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Learner</th><th>Email</th><th>Course</th><th>Progress</th><th>Submissions</th></tr></thead><tbody>' + (cachedProgress.map(item => '<tr><td><b>' + escapeHTML(item.name) + '</b></td><td>' + escapeHTML(item.email) + '</td><td>' + escapeHTML(item.courseTitle) + '</td><td>' + (Number(item.progress) || 0) + '%</td><td>' + (Number(item.submissions) || 0) + '</td></tr>').join("") || '<tr><td colspan="5" class="admin-empty-row">No course enrolments are available.</td></tr>') + '</tbody></table></div>';
+  } else {
+    body = '<div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Learner</th><th>Programme</th><th>Progress</th><th>Modules complete</th><th>Submissions</th><th>Standing</th></tr></thead><tbody>' + (cachedProgress.map(item => '<tr><td><b>' + escapeHTML(item.name) + '</b><small class="admin-cell-sub">' + escapeHTML(item.email) + '</small></td><td>' + escapeHTML(item.courseTitle) + '</td><td>' + (Number(item.progress) || 0) + '%</td><td>' + (Number(item.completedModules) || 0) + ' / ' + (Number(item.totalModules) || 0) + '</td><td>' + (Number(item.submissions) || 0) + '</td><td><span class="admin-status">' + (Number(item.progress) >= 75 ? "On track" : "In progress") + '</span></td></tr>').join("") || '<tr><td colspan="6" class="admin-empty-row">No learner progression data is available.</td></tr>') + '</tbody></table></div>';
+  }
+  const activeLearners = cachedUsers.filter(user => user.role === "learner" && user.status !== "Inactive").length;
+  const averageProgress = cachedProgress.length ? Math.round(cachedProgress.reduce((sum, item) => sum + (Number(item.progress) || 0), 0) / cachedProgress.length) : 0;
+  return '<div class="admin-workspace">' + intro + '<div class="admin-stat-strip"><article><small>Active learners</small><b>' + activeLearners + '</b></article><article><small>Course enrolments</small><b>' + cachedProgress.length + '</b></article><article><small>Average progress</small><b>' + averageProgress + '%</b></article><article><small>Intake</small><b>Jan 2027</b></article></div><section class="admin-panel"><div class="admin-toolbar">' + tabs + '<input type="search" class="admin-table-search" placeholder="Search learners" aria-label="Search learners" /></div>' + body + '</section></div>';
 }
 
 function renderCourses(role) {
   let list = cachedCourses;
-  if (role === "lecturer") list = cachedCourses.filter(c => c.instructor && c.instructor.includes("Chen"));
+  if (role === "lecturer") list = cachedCourses.filter(course => course.instructorId === currentUser.id || course.instructor === currentUser.name);
   if (role === "learner") {
-    return list.length ? '<div class="registered-programme-list">' + list.map(course =>
-      '<article class="registered-programme-card" data-course-card-id="' + escapeHTML(course.id) + '"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span></div>' +
-      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + courseModuleStats(course).percent + '%"></span></div><small>' + courseModuleStats(course).percent + '% complete' + (courseModuleStats(course).total ? ' · ' + courseModuleStats(course).completed + '/' + courseModuleStats(course).total + ' modules' : '') + '</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
-    ).join("") + '</div>' : '<div class="student-empty-state">No registered programme is linked to this learner account. When you register, only that programme and its modules will appear here.</div>';
+    const registered = list.filter(course => !course.catalogOnly);
+    const catalog = list.filter(course => course.catalogOnly);
+    return (registered.length ? '<div class="registered-programme-list">' + registered.map(course =>
+      '<article class="registered-programme-card" data-course-card-id="' + escapeHTML(course.id) + '"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span><button type="button" class="btn btn-sm btn-ghost" data-leave-course="' + escapeHTML(course.id) + '">Leave</button></div>' +
+      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + courseModuleStats(course).percent + '%"></span></div><small>' + courseModuleStats(course).percent + '% complete</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
+    ).join("") + '</div>' : '<div class="student-empty-state">No registered programme is linked to this learner account.</div>') +
+      (catalog.length ? '<section class="card"><h3>Course catalog</h3><div class="course-grid">' + catalog.map(course => '<article class="course-card"><div class="code">' + escapeHTML(course.code) + '</div><h4>' + escapeHTML(course.title) + '</h4><div class="meta">' + escapeHTML(course.instructor || "Chimera Learning") + '</div><span class="student-course-status">Available</span><button type="button" class="btn btn-sm btn-primary" data-enroll-course="' + escapeHTML(course.id) + '">Enroll</button></article>').join("") + '</div></section>' : '');
   }
-  return '<div class="course-grid">' + list.map(c =>
-    '<div class="course-card"><div class="code">' + escapeHTML(c.code) + '</div><h4>' + escapeHTML(c.title) + '</h4>' +
-    '<div class="meta">' + escapeHTML(c.instructor || "") + '</div><div class="meta">' + (c.students||0) + ' students</div></div>'
+  return (role === "lecturer" ? '<section class="card"><h3>Publish a course</h3><p>New courses are sent to an administrator for approval before learners can see them.</p><button type="button" class="btn btn-primary" id="publish-course-btn">Publish course</button></section>' : '') + '<div class="course-grid">' + list.map(course =>
+    '<div class="course-card"><div class="code">' + escapeHTML(course.code) + '</div><h4>' + escapeHTML(course.title) + '</h4><div class="meta">' + escapeHTML(course.instructor || "") + '</div><div class="meta">' + (course.students || 0) + ' students</div></div>'
   ).join("") + '</div>';
 }
 
@@ -1336,21 +1592,41 @@ function renderAchievements() {
   return '<div class="card"><h3>Achievements</h3><p style="color:var(--text-muted)">Milestones from your learning activity.</p><div class="achievement-grid">' + milestones.map(milestone => '<article class="achievement-card ' + (milestone.earned ? "is-earned" : "") + '"><span aria-hidden="true">' + milestone.icon + '</span><div><strong>' + milestone.title + '</strong><small>' + milestone.detail + '</small></div><em>' + (milestone.earned ? "Earned" : "In progress") + '</em></article>').join("") + '</div></div>';
 }
 
+function renderLearnerMessages() {
+  const courses = cachedCourses.filter(course => !course.catalogOnly);
+  const rows = cachedMessages.map(m => `<article class="question-row"><div><strong>${escapeHTML(m.senderName)} ? ${escapeHTML(m.recipientName)} ? ${escapeHTML(cachedCourses.find(c=>c.id===m.courseId)?.title||"Course")}</strong><p>${escapeHTML(m.message)}</p><small>${escapeHTML(new Date(m.createdAt).toLocaleString())}</small></div></article>`).join("");
+  return `<div class="card"><h3>Message your lecturer</h3><form id="learner-message-form" class="admin-broadcast-form"><label>Course<select name="courseId" required>${courses.map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Message<textarea name="message" required maxlength="4000"></textarea></label><button class="btn btn-primary" type="submit">Send message</button></form></div><div class="card"><h3>Conversation history</h3>${rows||'<p class="student-empty-state">No messages yet.</p>'}</div>`;
+}
+
+function openQuizModal(assignmentId) {
+  const assignment = cachedAssignments.find(item => item.id === assignmentId);
+  const questions = assignment?.quiz?.questions || [];
+  if (!assignment || !questions.length) { showToast("This quiz is not available yet"); return; }
+  const body = questions.map((q,i)=>`<fieldset class="form-group"><legend>${i+1}. ${escapeHTML(q.prompt)}</legend>${q.options.map((option,j)=>`<label><input type="radio" name="quiz-${i}" value="${j}"> ${escapeHTML(option)}</label>`).join("<br>")}</fieldset>`).join("");
+  openModal(escapeHTML(assignment.title), body, '<button class="btn btn-ghost" id="quiz-cancel">Cancel</button><button class="btn btn-primary" id="quiz-submit">Submit quiz</button>');
+  document.getElementById("quiz-cancel").onclick=closeModal;
+  document.getElementById("quiz-submit").onclick=async()=>{
+    const answers=questions.map((_,i)=>{const selected=document.querySelector(`input[name="quiz-${i}"]:checked`);return selected?Number(selected.value):-1;});
+    if(answers.includes(-1)){showToast("Answer every question before submitting");return;}
+    try{const result=await api("/quiz/submit",{method:"POST",body:JSON.stringify({assignmentId,answers})});closeModal();await loadData();renderPage();showToast(`Quiz submitted: ${result.score}%`);}
+    catch(error){showToast(error.message||"Could not submit quiz");}
+  };
+}
+
 function renderAssignments() {
   const rows = cachedAssignments.map(assignment => {
     const submissionType = /practical/i.test(assignment.type || "") ? "practical" : "assignment";
     const canSubmit = assignment.status === "pending" || assignment.status === "in-progress";
-    return `<tr><td>${escapeHTML(assignment.title)}</td><td>${escapeHTML(assignment.course)}</td><td>${escapeHTML(assignment.due || "Date to be confirmed")}</td><td>${escapeHTML(assignment.type || "Assignment")}</td><td><span class="status ${escapeHTML(assignment.status)}">${escapeHTML(assignment.status)}</span></td><td>${assignment.grade != null ? `${escapeHTML(assignment.grade)}%` : "—"}</td><td>${canSubmit ? `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit ${submissionType}</button>` : '<span class="student-course-status">Submitted</span>'}</td></tr>`;
+    const isQuiz = String(assignment.type).toLowerCase() === "quiz";
+    return `<tr><td>${escapeHTML(assignment.title)}</td><td>${escapeHTML(assignment.course)}</td><td>${escapeHTML(assignment.due || "Date to be confirmed")}</td><td>${escapeHTML(assignment.type || "Assignment")}</td><td><span class="status ${escapeHTML(assignment.status)}">${escapeHTML(assignment.status)}</span></td><td>${assignment.grade != null ? `${escapeHTML(assignment.grade)}%` : "—"}</td><td>${canSubmit ? (isQuiz ? `<button type="button" class="btn btn-sm btn-primary" data-quiz-id="${escapeHTML(assignment.id)}">Take quiz</button>` : `<button type="button" class="btn btn-sm btn-primary" data-submit-id="${escapeHTML(assignment.id)}">Submit ${submissionType}</button>`) : '<span class="student-course-status">Submitted</span>'}</td></tr>`;
   }).join("");
   return `<div class="card"><h3>My Assignments &amp; Practicals</h3><div class="table-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Due</th><th>Type</th><th>Status</th><th>Grade</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7">No assignments or practicals are available yet.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function renderGrades() {
-  return '<div class="card"><h3>Grades & Feedback</h3><div class="table-wrap"><table>' +
-    '<thead><tr><th>Assignment</th><th>Course</th><th>Grade</th><th>Feedback</th></tr></thead><tbody>' +
-    '<tr><td>Matrix Operations Project</td><td>MATH204</td><td><strong>88%</strong></td><td>Excellent work.</td></tr>' +
-    '<tr><td>Python Basics Quiz</td><td>CS101</td><td><strong>95%</strong></td><td>Outstanding.</td></tr>' +
-    '</tbody></table></div></div>';
+  const graded = cachedAssignments.filter(assignment => assignment.grade != null);
+  return '<div class="card"><h3>Grades &amp; Feedback</h3><div class="table-wrap"><table><thead><tr><th>Assessment</th><th>Course</th><th>Grade</th><th>Feedback</th></tr></thead><tbody>' +
+    (graded.map(assignment => `<tr><td>${escapeHTML(assignment.title)}</td><td>${escapeHTML(assignment.course)}</td><td><strong>${escapeHTML(assignment.grade)}%</strong></td><td>${escapeHTML(assignment.feedback || "No written feedback")}</td></tr>`).join("") || '<tr><td colspan="4">Grades and feedback will appear here after assessment.</td></tr>') + '</tbody></table></div></div>';
 }
 
 function renderProgress() {
@@ -1371,20 +1647,16 @@ function renderProgress() {
 
 function renderAssessments() {
   return '<div class="card"><h3>Assessments <button class="btn btn-sm btn-primary" id="create-assessment-btn">+ Create New</button></h3>' +
-    '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Type</th><th>Due</th></tr></thead><tbody>' +
+    '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Type</th><th>Due</th><th></th></tr></thead><tbody>' +
     cachedAssignments.map(a =>
-      '<tr><td>' + escapeHTML(a.title) + '</td><td>' + escapeHTML(a.course) + '</td><td>' + escapeHTML(a.type || "Assignment") + '</td><td>' + escapeHTML(a.due || "Date to be confirmed") + '</td></tr>'
-    ).join("") + (cachedAssignments.length ? "" : '<tr><td colspan="4">No assessments have been created yet.</td></tr>') + '</tbody></table></div></div>';
+      `<tr><td>${escapeHTML(a.title)}</td><td>${escapeHTML(a.course)}</td><td>${escapeHTML(a.type || "Assignment")}</td><td>${escapeHTML(a.due || "Date to be confirmed")}</td><td><button type="button" class="admin-inline-link" data-assessment-delete="${escapeHTML(a.id)}">Delete</button></td></tr>`
+    ).join("") + (cachedAssignments.length ? "" : '<tr><td colspan="5">No assessments have been created yet.</td></tr>') + '</tbody></table></div>' + renderGrading() + '</div>';
 }
 
 function renderGrading() {
-  return '<div class="card"><h3>Pending Submissions to Grade</h3><div class="table-wrap"><table>' +
-    '<thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th></th></tr></thead><tbody>' +
-    '<tr><td>Alex Johnson</td><td>React Component Library</td><td>2026-10-01</td>' +
-    '<td><button class="btn btn-sm btn-primary" data-grade data-student="Alex Johnson" data-assignment="React Component Library">Grade</button></td></tr>' +
-    '<tr><td>Priya Patel</td><td>Binary Search Trees</td><td>2026-09-30</td>' +
-    '<td><button class="btn btn-sm btn-primary" data-grade data-student="Priya Patel" data-assignment="Binary Search Trees">Grade</button></td></tr>' +
-    '</tbody></table></div></div>';
+  const pending = cachedSubmissions.filter(submission => submission.score == null);
+  return '<div class="card"><h3>Pending Submissions to Grade</h3><div class="table-wrap"><table><thead><tr><th>Student</th><th>Assignment</th><th>Submitted</th><th>File</th><th></th></tr></thead><tbody>' +
+    (pending.map(submission => `<tr><td>${escapeHTML(submission.studentName)}</td><td>${escapeHTML(submission.assignmentTitle)}</td><td>${escapeHTML(new Date(submission.submittedAt).toLocaleString())}</td><td>${escapeHTML(submission.filename)}</td><td><button class="btn btn-sm btn-primary" data-grade data-student="${escapeHTML(submission.userId)}" data-assignment="${escapeHTML(submission.assignmentId)}" data-student-name="${escapeHTML(submission.studentName)}" data-assignment-title="${escapeHTML(submission.assignmentTitle)}">Grade</button></td></tr>`).join("") || '<tr><td colspan="5">No submissions are waiting to be graded.</td></tr>') + '</tbody></table></div></div>';
 }
 
 function renderReports(role) {
@@ -1510,15 +1782,69 @@ function openSubmitModal(assignmentId) {
   };
 }
 
+function openPublishCourseModal() {
+  openModal("Publish course", '<div class="form-group"><label>Course title</label><input class="form-control" id="publish-course-title" required></div><div class="form-group"><label>Course code</label><input class="form-control" id="publish-course-code" required></div>', '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-publish">Send for approval</button>');
+  document.getElementById("modal-cancel").onclick = closeModal;
+  document.getElementById("modal-publish").onclick = async () => {
+    try { await api("/courses/publish", { method: "POST", body: JSON.stringify({ title: document.getElementById("publish-course-title").value, code: document.getElementById("publish-course-code").value }) }); closeModal(); await loadData(); renderPage(); showToast("Course sent to administrators for approval"); }
+    catch (error) { showToast(error.message || "Could not publish course"); }
+  };
+}
+
+async function updateEnrollment(courseId, action) {
+  try { await api("/enrollments", { method: "POST", body: JSON.stringify({ courseId, action }) }); await loadData(); renderNav(); renderPage(); showToast(action === "leave" ? "You left the course" : "You are enrolled in the course"); }
+  catch (error) { showToast(error.message || "Could not update enrolment"); }
+}
+
+async function submitAnnouncementForm(event, form) {
+  event.preventDefault(); const values = Object.fromEntries(new FormData(form));
+  try { await api("/announcements", { method: "POST", body: JSON.stringify(values) }); await loadData(); renderPage(); showToast("Announcement posted"); }
+  catch (error) { showToast(error.message || "Could not post announcement"); }
+}
+
+function openMessageReply(messageId, recipientId, courseId) {
+  const original = messageId && cachedMessages.find(m => m.id === messageId);
+  if (original) { recipientId = original.senderId === currentUser.id ? original.recipientId : original.senderId; courseId = original.courseId; }
+  const course = cachedCourses.find(c => c.id === courseId);
+  openModal(original ? `Reply to ${escapeHTML(original.senderName)}` : "Message learner", `<div class="form-group"><label>Course</label><input class="form-control" value="${escapeHTML(course?.title || "Course")}" disabled></div><div class="form-group"><label>Message</label><textarea class="form-control" id="reply-message" maxlength="4000" required></textarea></div>`, '<button class="btn btn-ghost" id="reply-cancel">Cancel</button><button class="btn btn-primary" id="reply-send">Send message</button>');
+  document.getElementById("reply-cancel").onclick = closeModal;
+  document.getElementById("reply-send").onclick = async () => {
+    try { await api("/messages", { method: "POST", body: JSON.stringify({ courseId, recipientId, message: document.getElementById("reply-message").value }) }); closeModal(); await loadData(); renderPage(); showToast("Message sent"); }
+    catch (error) { showToast(error.message || "Could not send message"); }
+  };
+}
+
+function openAdminUserModal() {
+  openModal("Add user", '<div class="form-group"><label>Name</label><input class="form-control" id="new-user-name" required></div><div class="form-group"><label>Email</label><input class="form-control" type="email" id="new-user-email" required></div><div class="form-group"><label>Role</label><select class="form-control" id="new-user-role"><option value="learner">Learner</option><option value="lecturer">Lecturer</option><option value="admin">Admin</option></select></div><div class="form-group"><label>Temporary password</label><input class="form-control" type="password" id="new-user-password" minlength="8" required></div>', '<button class="btn btn-ghost" id="user-create-cancel">Cancel</button><button class="btn btn-primary" id="user-create-submit">Create account</button>');
+  document.getElementById("user-create-cancel").onclick=closeModal;
+  document.getElementById("user-create-submit").onclick=async()=>{
+    try{await api("/users/manage",{method:"POST",body:JSON.stringify({action:"create",name:document.getElementById("new-user-name").value,email:document.getElementById("new-user-email").value,role:document.getElementById("new-user-role").value,password:document.getElementById("new-user-password").value})});closeModal();await loadData();renderPage();showToast("User account created");}
+    catch(error){showToast(error.message||"Could not create account");}
+  };
+}
+
+function openCourseReassign(courseId) {
+  const lecturers=cachedUsers.filter(u=>u.role==="lecturer"&&u.status!=="Inactive");
+  openModal("Reassign course",`<label class="form-group">Lecturer<select class="form-control" id="reassign-lecturer">${lecturers.map(u=>`<option value="${escapeHTML(u.id)}">${escapeHTML(u.name)}</option>`).join("")}</select></label>`, '<button class="btn btn-ghost" id="reassign-cancel">Cancel</button><button class="btn btn-primary" id="reassign-submit">Reassign</button>');
+  document.getElementById("reassign-cancel").onclick=closeModal;
+  document.getElementById("reassign-submit").onclick=async()=>{
+    try{await api("/courses/manage",{method:"POST",body:JSON.stringify({action:"reassign",courseId,lecturerId:document.getElementById("reassign-lecturer").value})});closeModal();await loadData();renderPage();showToast("Course reassigned");}
+    catch(error){showToast(error.message||"Could not reassign course");}
+  };
+}
+
 function openCreateAssessmentModal() {
   openModal("Create Assessment",
     '<div class="form-group"><label>Title</label><input class="form-control" id="assess-title" required /></div>' +
     '<div class="form-group"><label>Course</label><select class="form-control" id="assess-course">' +
     cachedCourses.map(c => '<option value="' + escapeHTML(c.code) + '">' + escapeHTML(c.code) + ' · ' + escapeHTML(c.title) + '</option>').join("") + '</select></div>' +
     '<div class="form-group"><label>Type</label><select class="form-control" id="assess-type"><option>Assignment</option><option>Practical</option><option>Quiz</option><option>Project</option></select></div>' +
+    '<div class="form-group" id="quiz-questions-group" hidden><label>Quiz questions (JSON)</label><textarea class="form-control" id="quiz-questions" rows="6" placeholder=\'[{"prompt":"Question?","options":["Option A","Option B"],"answer":0}]\'></textarea><small>Each question needs a prompt, at least two options, and the zero-based index of its correct option.</small></div>' +
     '<div class="form-group"><label>Due</label><input type="date" class="form-control" id="assess-due" /></div>',
     '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-create">Create</button>'
   );
+  const typeSelect = document.getElementById("assess-type");
+  typeSelect.onchange = () => { document.getElementById("quiz-questions-group").hidden = typeSelect.value !== "Quiz"; };
   document.getElementById("modal-cancel").onclick = closeModal;
   document.getElementById("modal-create").onclick = async () => {
     const title = document.getElementById("assess-title").value.trim();
@@ -1529,6 +1855,10 @@ function openCreateAssessmentModal() {
       type: document.getElementById("assess-type").value,
       due: document.getElementById("assess-due").value
     };
+    if (assignmentDetails.type === "Quiz") {
+      try { assignmentDetails.quiz = { questions: JSON.parse(document.getElementById("quiz-questions").value) }; }
+      catch { showToast("Enter valid quiz question JSON"); return; }
+    }
     try {
       const result = await api("/assignments", { method: "POST", body: JSON.stringify(assignmentDetails) });
       if (result) {
@@ -1575,9 +1905,9 @@ function openUploadModal() {
   };
 }
 
-function openGradeModal(student, assignment) {
+function openGradeModal(student, assignment, studentName = student, assignmentTitle = assignment) {
   openModal("Grade Submission",
-    '<p style="margin-bottom:1rem"><strong>' + student + '</strong><br>' + assignment + '</p>' +
+    '<p style="margin-bottom:1rem"><strong>' + escapeHTML(studentName) + '</strong><br>' + escapeHTML(assignmentTitle) + '</p>' +
     '<div class="form-group"><label>Score (%)</label><input type="number" class="form-control" id="grade-score" min="0" max="100" /></div>' +
     '<div class="form-group"><label>Feedback</label><textarea class="form-control" id="grade-feedback"></textarea></div>',
     '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-grade">Submit Grade</button>'
@@ -1588,9 +1918,8 @@ function openGradeModal(student, assignment) {
     if (!score) { showToast("Enter a score"); return; }
     try {
       await api("/submissions/grade", { method: "POST", body: JSON.stringify({ student, assignment, score: Number(score), feedback: document.getElementById("grade-feedback").value }) });
-    } catch (e) {}
-    closeModal();
-    showToast("Grade " + score + "% submitted for " + student);
+      closeModal(); await loadData(); renderPage(); showToast("Grade " + score + "% submitted for " + studentName);
+    } catch (error) { showToast(error.message || "Could not submit grade"); }
   };
 }
 
