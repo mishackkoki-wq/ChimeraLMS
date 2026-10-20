@@ -4,6 +4,17 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { AsyncLocalStorage } = require("node:async_hooks");
+
+const LOCAL_ENV_FILE = path.join(__dirname, ".env");
+if (fs.existsSync(LOCAL_ENV_FILE)) {
+  for (const line of fs.readFileSync(LOCAL_ENV_FILE, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || Object.prototype.hasOwnProperty.call(process.env, match[1])) continue;
+    const value = match[2].replace(/^(['"])(.*)\1$/, "$2");
+    process.env[match[1]] = value;
+  }
+}
 
 const PORT = Number(process.env.PORT || 5000);
 // Listen on all interfaces so hosted deployments and other devices can reach
@@ -11,6 +22,15 @@ const PORT = Number(process.env.PORT || 5000);
 const HOST = process.env.HOST || "0.0.0.0";
 const DATA_FILE = path.join(__dirname, "data.json");
 const PROGRAMMES_FILE = path.join(__dirname, "programmes.json");
+const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/+$/, "");
+// Prefer Supabase's current server-side secret key. Keep the legacy service_role
+// variable as a fallback for existing local deployments.
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_API_KEY = SUPABASE_SECRET_KEY || SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_STATE_TABLE = process.env.SUPABASE_STATE_TABLE || "lms_state";
+const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_API_KEY);
+const requestContext = new AsyncLocalStorage();
 const STATIC_ROOT = path.resolve(__dirname, "..");
 const PROGRAMMES = JSON.parse(fs.readFileSync(PROGRAMMES_FILE, "utf8"));
 const JWT_SECRET = process.env.JWT_SECRET || "chimera-lms-local-development-secret-change-me";
@@ -44,6 +64,8 @@ function initialData() {
 }
 
 function loadData() {
+  const context = requestContext.getStore();
+  if (context?.data) return context.data;
   try {
     const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
     if (!Array.isArray(data.attendance)) data.attendance = [];
@@ -58,6 +80,12 @@ function loadData() {
 }
 
 function saveData(data) {
+  const context = requestContext.getStore();
+  if (supabaseConfigured && context) {
+    context.data = data;
+    context.dirty = true;
+    return;
+  }
   fs.mkdirSync(__dirname, { recursive: true });
   const tempFile = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tempFile, JSON.stringify(data, null, 2));
@@ -90,8 +118,7 @@ function verifyToken(token) {
     return null;
   }
   if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected) || payload.exp < Date.now() / 1000) return null;
-  const data = loadData();
-  return data.users.find(user => user.id === payload.sub && user.status !== "Inactive") || null;
+  return { id: payload.sub };
 }
 
 function publicUser(user) {
@@ -111,9 +138,225 @@ function profileUser(user) {
   };
 }
 
-function send(response, status, payload) {
+async function send(response, status, payload) {
+  const context = requestContext.getStore();
+  if (supabaseConfigured && context?.dirty) {
+    try {
+      await persistSupabaseUsers(context.data.users || [], context.originalUsers || []);
+      await persistSupabaseState(context.data, context.revision);
+      context.revision += 1;
+      context.dirty = false;
+    } catch (error) {
+      console.error("Supabase state write failed:", error.message);
+      status = error.status || 503;
+      payload = { error: error.status === 409 ? error.message : "Could not save LMS data to Supabase" };
+    }
+  }
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload));
+}
+
+function supabaseHeaders(prefer) {
+  return {
+    apikey: SUPABASE_API_KEY,
+    // New sb_secret keys are API keys, not JWTs; Supabase maps them to the
+    // service_role database role from the apikey header alone. Legacy JWT keys
+    // still need Authorization for the role to be applied to the request.
+    ...(!SUPABASE_SECRET_KEY && SUPABASE_SERVICE_ROLE_KEY
+      ? { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` }
+      : {}),
+    "Content-Type": "application/json",
+    ...(prefer ? { Prefer: prefer } : {})
+  };
+}
+
+async function supabaseRequest(url, options = {}) {
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers: { ...supabaseHeaders(options.prefer), ...(options.headers || {}) } });
+  } catch (error) {
+    throw new Error(`Unable to reach Supabase: ${error.message}`);
+  }
+  const body = await response.text();
+  let result = null;
+  try { result = body ? JSON.parse(body) : null; } catch { result = body; }
+  if (!response.ok) {
+    const error = new Error(result?.message || result?.hint || `Supabase returned HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return result;
+}
+
+function supabaseStateUrl(query = "") {
+  return `${SUPABASE_URL}/rest/v1/${encodeURIComponent(SUPABASE_STATE_TABLE)}${query}`;
+}
+
+function supabaseUsersUrl(query = "") {
+  return `${SUPABASE_URL}/rest/v1/users${query}`;
+}
+
+const USER_COLUMN_FIELDS = new Set([
+  "id", "name", "username", "email", "role", "status", "avatar", "profileImage",
+  "identityNumber", "passportNumber", "dateOfBirth", "gender", "phone", "lastSchool",
+  "passwordSalt", "passwordHash", "recoveryQuestion", "recoveryAnswerHash", "lastLogin",
+  "legacyIdentityNumber", "legacyPassportNumber"
+]);
+
+function toSupabaseUser(user) {
+  const attributes = Object.fromEntries(Object.entries(user).filter(([key]) => !USER_COLUMN_FIELDS.has(key)));
+  if (user.legacyIdentityNumber) attributes.__legacyIdentityNumber = user.legacyIdentityNumber;
+  if (user.legacyPassportNumber) attributes.__legacyPassportNumber = user.legacyPassportNumber;
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username || null,
+    email: String(user.email || "").toLowerCase(),
+    role: user.role,
+    status: user.status || "Active",
+    avatar: user.avatar || null,
+    profile_image: user.profileImage || null,
+    identity_number: user.legacyIdentityNumber ? null : user.identityNumber || "",
+    passport_number: user.legacyPassportNumber ? null : user.passportNumber || "",
+    date_of_birth: user.dateOfBirth || null,
+    gender: user.gender || "",
+    phone: user.phone || "",
+    last_school: user.lastSchool || "",
+    password_salt: user.passwordSalt || null,
+    password_hash: user.passwordHash || null,
+    recovery_question: user.recoveryQuestion || null,
+    recovery_answer_hash: user.recoveryAnswerHash || null,
+    last_login_at: user.lastLogin || null,
+    attributes
+  };
+}
+
+function fromSupabaseUser(row) {
+  const attributes = row.attributes && typeof row.attributes === "object" ? { ...row.attributes } : {};
+  const legacyIdentityNumber = attributes.__legacyIdentityNumber || "";
+  const legacyPassportNumber = attributes.__legacyPassportNumber || "";
+  delete attributes.__legacyIdentityNumber;
+  delete attributes.__legacyPassportNumber;
+  return {
+    ...attributes,
+    id: row.id,
+    name: row.name,
+    ...(row.username ? { username: row.username } : {}),
+    email: row.email,
+    role: row.role,
+    status: row.status || "Active",
+    ...(row.avatar ? { avatar: row.avatar } : {}),
+    ...(row.profile_image ? { profileImage: row.profile_image } : {}),
+    identityNumber: row.identity_number || legacyIdentityNumber,
+    passportNumber: row.passport_number || legacyPassportNumber,
+    ...(legacyIdentityNumber ? { legacyIdentityNumber } : {}),
+    ...(legacyPassportNumber ? { legacyPassportNumber } : {}),
+    dateOfBirth: row.date_of_birth || "",
+    gender: row.gender || "",
+    phone: row.phone || "",
+    lastSchool: row.last_school || "",
+    ...(row.password_salt ? { passwordSalt: row.password_salt } : {}),
+    ...(row.password_hash ? { passwordHash: row.password_hash } : {}),
+    ...(row.recovery_question ? { recoveryQuestion: row.recovery_question } : {}),
+    ...(row.recovery_answer_hash ? { recoveryAnswerHash: row.recovery_answer_hash } : {}),
+    ...(row.last_login_at ? { lastLogin: row.last_login_at } : {})
+  };
+}
+
+async function readSupabaseUsers() {
+  const rows = await supabaseRequest(supabaseUsersUrl("?select=*&order=created_at.asc"));
+  if (!Array.isArray(rows)) throw new Error("Supabase users query returned an invalid response");
+  return rows.map(fromSupabaseUser);
+}
+
+async function persistSupabaseUsers(users, previousUsers = []) {
+  const previousById = new Map(previousUsers.map(user => [user.id, JSON.stringify(user)]));
+  const currentIds = new Set(users.map(user => user.id));
+  const changed = users.filter(user => previousById.get(user.id) !== JSON.stringify(user)).map(toSupabaseUser);
+  if (changed.length) {
+    try {
+      await supabaseRequest(supabaseUsersUrl("?on_conflict=id"), {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(changed)
+      });
+    } catch (error) {
+      if (/attributes.*does not exist|column .*attributes/i.test(error.message)) {
+        throw new Error("The Supabase users table needs its attributes column. Run backend/users-table-migration.sql in the Supabase SQL Editor, then restart the server.");
+      }
+      throw error;
+    }
+  }
+  for (const user of previousUsers) {
+    if (!currentIds.has(user.id)) {
+      await supabaseRequest(supabaseUsersUrl(`?id=eq.${encodeURIComponent(user.id)}`), { method: "DELETE" });
+    }
+  }
+}
+
+async function readSupabaseState() {
+  const rows = await supabaseRequest(supabaseStateUrl("?id=eq.main&select=id,state,revision"));
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function initializeSupabaseState() {
+  if (!supabaseConfigured) return;
+  let record = await readSupabaseState();
+  if (!record) {
+    const seed = loadData();
+    const inserted = await supabaseRequest(supabaseStateUrl(), {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ id: "main", revision: 1, state: seed })
+    });
+    record = inserted?.[0] || null;
+    if (!record) throw new Error("Supabase did not return the initialized LMS state row");
+    console.log("Initialized Supabase LMS state from backend/data.json");
+  }
+  if (!record.state || typeof record.state !== "object" || Array.isArray(record.state)) {
+    throw new Error("The Supabase LMS state row has an invalid state payload");
+  }
+  if (Array.isArray(record.state.users)) {
+    const storedUsers = await readSupabaseUsers();
+    const storedIds = new Set(storedUsers.map(user => user.id));
+    const legacyUsers = record.state.users.filter(user => !storedIds.has(user.id));
+    const takenIdentityNumbers = new Set(storedUsers.map(user => normalizeAccountNumber(user.identityNumber)).filter(Boolean));
+    const takenPassportNumbers = new Set(storedUsers.map(user => normalizeAccountNumber(user.passportNumber)).filter(Boolean));
+    for (const account of legacyUsers) {
+      for (const [field, legacyField, taken] of [
+        ["identityNumber", "legacyIdentityNumber", takenIdentityNumbers],
+        ["passportNumber", "legacyPassportNumber", takenPassportNumbers]
+      ]) {
+        const value = normalizeAccountNumber(account[field]);
+        if (!value) continue;
+        if (taken.has(value)) account[legacyField] = account[field];
+        taken.add(value);
+      }
+    }
+    await persistSupabaseUsers(legacyUsers);
+    const migratedState = { ...record.state };
+    delete migratedState.users;
+    await persistSupabaseState(migratedState, Number(record.revision));
+    record = { ...record, state: migratedState, revision: Number(record.revision) + 1 };
+    console.log(`Moved ${legacyUsers.length} existing account(s) from lms_state into the users table`);
+  }
+  console.log(`Supabase persistence ready (state revision ${record.revision})`);
+}
+
+async function persistSupabaseState(data, expectedRevision) {
+  const revision = Number(expectedRevision);
+  const state = { ...data };
+  delete state.users;
+  const updated = await supabaseRequest(supabaseStateUrl(`?id=eq.main&revision=eq.${revision}&select=revision`), {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ state, revision: revision + 1, updated_at: new Date().toISOString() })
+  });
+  if (!Array.isArray(updated) || !updated.length) {
+    const error = new Error("LMS data changed in another server session. Refresh and retry the action.");
+    error.status = 409;
+    throw error;
+  }
 }
 
 function serveStatic(request, response, url) {
@@ -206,6 +449,17 @@ function loginKey(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeAccountNumber(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function accountNumberInUse(users, field, value, excludeId = "") {
+  const normalized = normalizeAccountNumber(value);
+  return Boolean(normalized && users.some(account =>
+    account.id !== excludeId && normalizeAccountNumber(account[field]) === normalized
+  ));
+}
+
 function isDateKey(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(`${value}T00:00:00Z`)) &&
@@ -236,7 +490,12 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   return { salt, hash: crypto.scryptSync(password, salt, 64).toString("hex") };
 }
 
-async function handle(request, response) {
+function handle(request, response) {
+  const context = { data: null, revision: null, dirty: false, originalUsers: null };
+  return requestContext.run(context, () => handleRequest(request, response));
+}
+
+async function handleRequest(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
@@ -248,11 +507,27 @@ async function handle(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
   const route = url.pathname.replace(/\/$/, "") || "/";
   if (!route.startsWith("/api/")) return serveStatic(request, response, url);
-  if (route === "/api/health") return send(response, 200, { status: "ok", service: "Chimera LMS JavaScript API" });
+  if (route === "/api/health") return send(response, 200, {
+    status: "ok",
+    service: "Chimera LMS JavaScript API",
+    persistence: supabaseConfigured ? "supabase" : "json-file"
+  });
 
+  const context = requestContext.getStore();
+  if (supabaseConfigured) {
+    const record = await readSupabaseState();
+    if (!record) return send(response, 503, { error: "Supabase LMS state has not been initialized" });
+    context.data = record.state;
+    context.revision = Number(record.revision);
+    context.data.users = await readSupabaseUsers();
+    context.originalUsers = structuredClone(context.data.users);
+  } else {
+    context.data = loadData();
+  }
   const data = loadData();
   const authorization = request.headers.authorization || "";
-  const user = verifyToken(authorization.startsWith("Bearer ") ? authorization.slice(7) : "");
+  const tokenUser = verifyToken(authorization.startsWith("Bearer ") ? authorization.slice(7) : "");
+  const user = tokenUser ? data.users.find(account => account.id === tokenUser.id && account.status !== "Inactive") || null : null;
 
   if (request.method === "POST" && route === "/api/auth/login") {
     const body = await readBody(request);
@@ -317,6 +592,8 @@ async function handle(request, response) {
     if (password !== String(body.passwordConfirm || "")) return send(response, 400, { error: "Passwords do not match" });
     if (password.length < 8) return send(response, 400, { error: "Password must have at least 8 characters" });
     if (!body.identityNumber && !body.passportNumber) return send(response, 400, { error: "An identity or passport number is required" });
+    if (accountNumberInUse(data.users, "identityNumber", body.identityNumber)) return send(response, 409, { error: "That identity number is already registered" });
+    if (accountNumberInUse(data.users, "passportNumber", body.passportNumber)) return send(response, 409, { error: "That passport number is already registered" });
     if (!body.agreement) return send(response, 400, { error: "Please accept the registration agreement" });
     const selectedProgramme = data.courses.find(course => courseNameKey(course.title) === courseNameKey(body.course));
     if (!selectedProgramme) return send(response, 400, { error: "Choose one of the available certificate programmes" });
@@ -574,6 +851,14 @@ async function handle(request, response) {
     const body = await readBody(request, 4 * 1024 * 1024);
     const account = data.users.find(item => item.id === user.id);
     const editableFields = ["name", "email", "identityNumber", "passportNumber", "dateOfBirth", "gender", "phone", "lastSchool"];
+    for (const [field, legacyField] of [["identityNumber", "legacyIdentityNumber"], ["passportNumber", "legacyPassportNumber"]]) {
+      if (!Object.hasOwn(body, field)) continue;
+      const nextValue = String(body[field] || "").trim();
+      if (normalizeAccountNumber(nextValue) !== normalizeAccountNumber(account[field]) && accountNumberInUse(data.users, field, nextValue, account.id)) {
+        return send(response, 409, { error: `That ${field === "identityNumber" ? "identity" : "passport"} number is already registered` });
+      }
+      if (normalizeAccountNumber(nextValue) !== normalizeAccountNumber(account[field])) delete account[legacyField];
+    }
     for (const key of editableFields) {
       if (Object.hasOwn(body, key)) account[key] = String(body[key] || "").trim();
     }
@@ -910,10 +1195,25 @@ const server = http.createServer((request, response) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  loadData();
-  console.log(`Chimera LMS JavaScript API listening on http://${HOST}:${PORT}`);
-});
+async function startServer() {
+  try {
+    if (SUPABASE_SECRET_KEY.startsWith("sb_publishable_")) {
+      throw new Error("SUPABASE_SECRET_KEY contains a publishable key. Set the server-side sb_secret_ key from Supabase Settings > API Keys.");
+    }
+    if (Boolean(SUPABASE_URL) !== Boolean(SUPABASE_API_KEY)) {
+      throw new Error("Set both SUPABASE_URL and SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY), or leave both unset to use data.json");
+    }
+    if (supabaseConfigured) await initializeSupabaseState();
+    else loadData();
+  } catch (error) {
+    console.error("Could not initialize LMS persistence:", error.message);
+    process.exitCode = 1;
+    return;
+  }
+  server.listen(PORT, HOST, () => console.log(`Chimera LMS JavaScript API listening on http://${HOST}:${PORT}`));
+}
+
+startServer();
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => server.close(() => process.exit(0)));
