@@ -447,9 +447,9 @@ logoutBtn.addEventListener("click", () => {
   }
 });
 
-if (roleProfileButton) roleProfileButton.addEventListener("click", openLearnerProfile);
+if (roleProfileButton) roleProfileButton.addEventListener("click", openProfile);
 
-async function openLearnerProfile() {
+async function openProfile() {
   let profile = currentUser || {};
   try {
     profile = await api("/me") || profile;
@@ -460,26 +460,33 @@ async function openLearnerProfile() {
 
   const field = (label, name, value = "", type = "text", autocomplete = "off") =>
     `<label class="profile-field"><span>${label}</span><input class="form-control" type="${type}" name="${name}" value="${escapeHTML(value)}" autocomplete="${autocomplete}" /></label>`;
-  modalOverlay.classList.add("profile-modal-open");
-  openModal("Student Profile", `
-    <p class="profile-intro">View and update the personal information linked to your Chimera LMS account.</p>
-    <form id="student-profile-form" class="profile-form">
-      <label class="profile-field profile-picture-field"><span>Profile picture</span><input class="form-control" type="file" name="profilePicture" accept="image/png,image/jpeg,image/gif,image/webp" /><small>PNG, JPG, GIF, or WebP. Maximum 2 MB.</small></label>
-      <div class="profile-form-grid">
-        ${field("Full name", "name", profile.name, "text", "name")}
-        ${field("Email address", "email", profile.email, "email", "email")}
+  const isLearner = profile.role === "learner";
+  const profileTitle = isLearner ? "Student Profile" : "Admin Profile";
+  const profileDescription = isLearner
+    ? "View and update the personal information linked to your Chimera LMS account."
+    : "View and update the administrator information linked to your Chimera LMS account.";
+  const studentFields = isLearner ? `
         ${field("Identity number", "identityNumber", profile.identityNumber)}
         ${field("Passport number", "passportNumber", profile.passportNumber)}
         ${field("Date of birth", "dateOfBirth", profile.dateOfBirth, "date", "bday")}
         <label class="profile-field"><span>Gender</span><select class="form-control" name="gender"><option value="">Select gender</option><option value="female" ${profile.gender === "female" ? "selected" : ""}>Female</option><option value="male" ${profile.gender === "male" ? "selected" : ""}>Male</option><option value="prefer-not-to-say" ${profile.gender === "prefer-not-to-say" ? "selected" : ""}>Prefer not to say</option></select></label>
+        ${field("Last school attended", "lastSchool", profile.lastSchool)}` : "";
+  modalOverlay.classList.add("profile-modal-open");
+  openModal(profileTitle, `
+    <p class="profile-intro">${profileDescription}</p>
+    <form id="account-profile-form" class="profile-form">
+      <label class="profile-field profile-picture-field"><span>Profile picture</span><input class="form-control" type="file" name="profilePicture" accept="image/png,image/jpeg,image/gif,image/webp" /><small>PNG, JPG, GIF, or WebP. Maximum 2 MB.</small></label>
+      <div class="profile-form-grid">
+        ${field("Full name", "name", profile.name, "text", "name")}
+        ${field("Email address", "email", profile.email, "email", "email")}
         ${field("Contact phone number", "phone", profile.phone, "tel", "tel")}
-        ${field("Last school attended", "lastSchool", profile.lastSchool)}
+        ${studentFields}
       </div>
     </form>`,
-    '<button class="btn btn-ghost" id="profile-cancel">Cancel</button><button class="btn btn-primary" id="profile-save" form="student-profile-form">Save changes</button>'
+    '<button class="btn btn-ghost" id="profile-cancel">Cancel</button><button class="btn btn-primary" id="profile-save" form="account-profile-form">Save changes</button>'
   );
   document.getElementById("profile-cancel").onclick = closeModal;
-  document.getElementById("student-profile-form").addEventListener("submit", async event => {
+  document.getElementById("account-profile-form").addEventListener("submit", async event => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const updates = Object.fromEntries(formData.entries());
@@ -899,7 +906,7 @@ function attachPageListeners() {
   const broadcastForm = document.getElementById("admin-broadcast-form");
   if (broadcastForm) broadcastForm.onsubmit = event => submitAnnouncementForm(event, broadcastForm);
   const editLearnerProfile = document.getElementById("edit-learner-profile");
-  if (editLearnerProfile) editLearnerProfile.addEventListener("click", openLearnerProfile);
+  if (editLearnerProfile) editLearnerProfile.addEventListener("click", openProfile);
   document.querySelectorAll("[data-submit-id]").forEach(btn => {
     btn.addEventListener("click", () => openSubmitModal(btn.dataset.submitId));
   });
