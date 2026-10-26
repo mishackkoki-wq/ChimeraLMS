@@ -66,7 +66,8 @@ the sign-in form.
 | POST   | /api/assignments        | Create assessment            | Lecturer  |
 | POST   | /api/submissions        | Submit assignment            | Learner   |
 | POST   | /api/submissions/grade  | Grade submission             | Lecturer  |
-| POST   | /api/materials          | Upload materials (simulated) | Lecturer  |
+| GET    | /api/materials          | List materials for accessible courses | Learner / Lecturer / Admin |
+| POST   | /api/materials          | Upload a file to a course topic | Lecturer |
 | GET    | /api/users              | User list                    | Admin     |
 | GET    | /api/audit              | Audit log                    | Admin     |
 | GET    | /api/stats              | Role-based stats             | Bearer    |
@@ -78,7 +79,7 @@ the sign-in form.
 - Assignment submission with file upload UI
 - Create assessments
 - Grade submissions
-- Upload course materials
+- Upload learning files to course topics and track topic completion on the learner's My Courses page
 - Admin user management + audit log
 - Dark / Light theme toggle (persisted)
 - Fully offline-capable fallback if backend is down

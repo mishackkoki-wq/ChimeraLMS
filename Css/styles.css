@@ -1980,6 +1980,13 @@ body.light #register-screen.registration-screen { background: #f3f6f8; }
 .programme-module-topic { padding:.32rem .4rem; border:0; border-radius:7px; background:transparent; color:var(--text-muted); font:inherit; font-size:.74rem; line-height:1.45; text-align:left; cursor:pointer; }
 .programme-module-topic:hover { background:var(--bg-hover); color:var(--chimera-red); text-decoration:underline; }
 .programme-module-topic:focus-visible { outline:2px solid var(--chimera-red); outline-offset:1px; }
+.topic-material-list { display:grid; grid-column:2; gap:.3rem; padding:0 .4rem .45rem 0; }
+.topic-material-list strong { color:var(--text); font-size:.68rem; }
+.topic-material-list a { overflow-wrap:anywhere; color:var(--chimera-red); font-size:.72rem; font-weight:650; text-decoration:underline; }
+.topic-material-list a[aria-disabled="true"] { color:var(--text-muted); text-decoration:none; }
+.course-material-list { grid-column:1 / -1; margin:.5rem 0; padding:.65rem .85rem; border-top:1px solid var(--border); }
+.course-material-list>div,.course-material-list>div>span { color:var(--text-muted); font-size:.72rem; }
+.course-material-list small { color:var(--text-muted); font-size:.68rem; }
 .programme-module-note { display:grid; grid-column:2; grid-template-columns:minmax(0,1fr) auto; gap:.4rem; padding:0 .4rem .4rem 0; }
 .programme-module-note textarea { grid-column:1 / -1; width:100%; min-height:58px; resize:vertical; padding:.5rem .6rem; border:1px solid var(--border); border-radius:7px; background:var(--bg-card); color:var(--text); font:inherit; font-size:.74rem; }
 .programme-module-note textarea:focus { outline:2px solid color-mix(in srgb,var(--chimera-red) 35%,transparent); border-color:var(--chimera-red); }

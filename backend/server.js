@@ -69,7 +69,7 @@ function loadData() {
   try {
     const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
     if (!Array.isArray(data.attendance)) data.attendance = [];
-    for (const key of ["notifications", "audit_log", "courses", "assignments", "submissions", "enrollments", "messages", "announcements", "quiz_attempts"]) if (!Array.isArray(data[key])) data[key] = [];
+    for (const key of ["notifications", "audit_log", "courses", "assignments", "submissions", "enrollments", "materials", "messages", "announcements", "quiz_attempts"]) if (!Array.isArray(data[key])) data[key] = [];
     return data;
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -766,6 +766,11 @@ async function handleRequest(request, response) {
     if (!course || !canManageCourse(user, course) || !Array.isArray(course.modules?.[group]) || !Number.isInteger(index) || index < 0 || index >= course.modules[group].length) return send(response, 404, { error: "Lesson not found" });
     const [title] = course.modules[group].splice(index, 1);
     if (!course.modules[group].length) delete course.modules[group];
+    data.materials = (data.materials || []).filter(material =>
+      material.courseId !== course.id || material.group !== group || Number(material.moduleIndex) !== index
+    ).map(material => material.courseId === course.id && material.group === group && Number(material.moduleIndex) > index
+      ? { ...material, moduleIndex: Number(material.moduleIndex) - 1 }
+      : material);
     data.users.filter(learner => learner.role === "learner").forEach(learner => {
       for (const field of ["moduleProgress", "moduleNotes"]) {
         const values = learner[field]?.[course.id]?.[group];
@@ -1153,14 +1158,73 @@ async function handleRequest(request, response) {
     return send(response, 201, assignment);
   }
 
+  if (request.method === "GET" && route === "/api/materials") {
+    if (!requireRole(user, ["learner", "lecturer", "admin"])) return send(response, 403, { error: "Forbidden" });
+    let courseIds = new Set(data.courses.map(course => course.id));
+    if (user.role === "lecturer") {
+      courseIds = new Set(data.courses.filter(course => canManageCourse(user, course)).map(course => course.id));
+    } else if (user.role === "learner") {
+      const learner = data.users.find(item => item.id === user.id);
+      const registeredProgramme = courseNameKey(learner && learner.selectedCourse);
+      const enrolledCourseIds = new Set(data.enrollments.filter(enrollment => enrollment.userId === user.id).map(enrollment => enrollment.courseId));
+      courseIds = new Set(data.courses.filter(course =>
+        !["pending", "rejected", "archived"].includes(course.status) &&
+        (enrolledCourseIds.has(course.id) || courseNameKey(course.title) === registeredProgramme)
+      ).map(course => course.id));
+    }
+    // Older uploads stored only the course code (or title), before material
+    // records included courseId. Resolve those records at read time so they
+    // remain visible without rewriting the existing JSON data.
+    const accessibleCourses = data.courses.filter(course => courseIds.has(course.id));
+    const materials = data.materials.flatMap(material => {
+      const course = accessibleCourses.find(item => item.id === material.courseId ||
+        (material.course && (String(material.course).toLowerCase() === String(item.code || "").toLowerCase() ||
+          String(material.course).toLowerCase() === String(item.title || "").toLowerCase())));
+      return course ? [{ ...material, courseId: course.id }] : [];
+    });
+    return send(response, 200, materials);
+  }
+
   if (request.method === "POST" && route === "/api/materials") {
     if (!requireRole(user, ["lecturer", "admin"])) return send(response, 403, { error: "Forbidden" });
-    const body = await readBody(request);
-    const material = { id: crypto.randomUUID(), course: body.course || "", title: body.title || "", filename: body.filename || "", uploadedBy: user.id, uploadedAt: new Date().toISOString() };
+    const body = await readBody(request, 8 * 1024 * 1024);
+    const course = data.courses.find(item => item.id === String(body.courseId || ""));
+    if (!course || !canManageCourse(user, course)) return send(response, 403, { error: "You cannot upload content to this course" });
+    const group = String(body.group || "");
+    const moduleIndex = Number(body.moduleIndex);
+    if (!Array.isArray(course.modules?.[group]) || !Number.isInteger(moduleIndex) || moduleIndex < 0 || moduleIndex >= course.modules[group].length) {
+      return send(response, 400, { error: "Choose a valid course topic" });
+    }
+    const title = String(body.title || "").trim().slice(0, 180);
+    const filename = path.basename(String(body.filename || "").trim()).slice(0, 255);
+    const fileContent = String(body.fileContent || "");
+    const fileType = String(body.fileType || "application/octet-stream");
+    if (!title) return send(response, 400, { error: "Content title is required" });
+    if (!filename || !/^[A-Za-z0-9+/]*={0,2}$/.test(fileContent) || !fileContent) return send(response, 400, { error: "Choose a file to upload" });
+    const fileBuffer = Buffer.from(fileContent, "base64");
+    if (fileBuffer.length > 5 * 1024 * 1024 || fileBuffer.toString("base64") !== fileContent) {
+      return send(response, 413, { error: "Learning content files must be 5 MB or smaller" });
+    }
+    if (!/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(fileType)) {
+      return send(response, 400, { error: "Choose a valid file type" });
+    }
+    const material = {
+      id: crypto.randomUUID(),
+      courseId: course.id,
+      course: course.code,
+      group,
+      moduleIndex,
+      title,
+      filename,
+      fileType,
+      fileSize: fileBuffer.length,
+      fileContent,
+      uploadedBy: user.id,
+      uploadedAt: new Date().toISOString()
+    };
     data.materials.push(material);
-    const course = data.courses.find(item => item.code === material.course || item.id === material.course);
     const learners = course ? data.users.filter(item => item.role === "learner" && item.status !== "Inactive" && (courseNameKey(item.selectedCourse) === courseNameKey(course.title) || data.enrollments.some(e => e.userId === item.id && e.courseId === course.id))).map(item => item.id) : [];
-    recordActivity(data, user, `Uploaded course material ${material.title}`, learners);
+    recordActivity(data, user, `Uploaded ${material.title} to ${course.modules[group][moduleIndex]} in ${course.title}`, learners);
     saveData(data);
     return send(response, 201, material);
   }

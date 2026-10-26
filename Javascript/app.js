@@ -23,6 +23,7 @@ let cachedSubmissions = [];
 let cachedAnnouncements = [];
 let cachedMessages = [];
 let cachedProgress = [];
+let cachedMaterials = [];
 const adminSectionView = { users: "all", courses: "catalogue", admissions: "applications" };
 let attendanceRegister = { courseId: "", date: "", learners: [], records: [] };
 let attendanceCourseId = "";
@@ -241,7 +242,8 @@ async function api(path, options = {}) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && authToken) {
       authToken = null; currentUser = null; localStorage.removeItem("chimera_token");
-      if (typeof logoutBtn !== "undefined" && logoutBtn) logoutBtn.click();
+      if (loginForm) loginForm.reset();
+      if (typeof showScreen === "function") showScreen("login", "replace");
     }
     if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
     return data;
@@ -600,7 +602,7 @@ async function loadData() {
       return null;
     }
   };
-  const [courses, assignments, users, audit, notifications, submissions, announcements, messages] = await Promise.all([
+  const [courses, assignments, users, audit, notifications, submissions, announcements, messages, materials] = await Promise.all([
     safeLoad("/courses"),
     safeLoad("/assignments"),
     role === "admin" ? safeLoad("/users") : Promise.resolve(null),
@@ -608,7 +610,8 @@ async function loadData() {
     safeLoad("/notifications", true),
     role === "lecturer" || role === "admin" ? safeLoad("/submissions", true) : Promise.resolve([]),
     safeLoad("/announcements", true),
-    role === "learner" || role === "lecturer" ? safeLoad("/messages", true) : Promise.resolve([])
+    role === "learner" || role === "lecturer" ? safeLoad("/messages", true) : Promise.resolve([]),
+    safeLoad("/materials", true)
   ]);
   // Learner access is based on the authenticated programme returned by the API.
   // Do not fall back to a global demo catalogue when the API is unavailable.
@@ -625,6 +628,7 @@ async function loadData() {
   cachedSubmissions = submissions || [];
   cachedAnnouncements = announcements || [];
   cachedMessages = messages || [];
+  cachedMaterials = materials || [];
   cachedProgress = (role === "lecturer" || role === "admin") && cachedCourses.length ? (await Promise.all(cachedCourses.map(course => safeLoad(`/progress?courseId=${encodeURIComponent(course.id)}`, true)))).flatMap(items => items || []) : [];
   updateNotificationBadge();
 }
@@ -658,6 +662,8 @@ setInterval(async () => {
     const [courses, assignments] = await Promise.all([api("/courses"), api("/assignments")]);
     if (courses && JSON.stringify(courses) !== JSON.stringify(cachedCourses)) { cachedCourses = courses; refreshPage = true; }
     if (assignments && JSON.stringify(assignments) !== JSON.stringify(cachedAssignments)) { cachedAssignments = assignments; refreshPage = true; }
+    const materials = await apiOptional("/materials");
+    if (materials && JSON.stringify(materials) !== JSON.stringify(cachedMaterials)) { cachedMaterials = materials; refreshPage = true; }
     const announcements = await apiOptional("/announcements");
     if (announcements && JSON.stringify(announcements) !== JSON.stringify(cachedAnnouncements)) { cachedAnnouncements = announcements; refreshPage = true; }
     if (role === "learner" || role === "lecturer") {
@@ -778,7 +784,7 @@ function renderPage() {
     attendance: "Attendance Register", grading: "Grading Queue", reports: "Reports", users: "User Management",
     security: "Security & Audit Logs", settings: "System Settings"
   };
-  pageTitle.textContent = currentUser.role === "admin" ? ({ dashboard: "Overview", users: "User Management", courses: "Course & Academic Management", content: "Content Approval", assessments: "Assessments & Grades", admissions: "Admissions & Enrolment", attendance: "Attendance & Discipline", communication: "Communication Center", reports: "Reports & Analytics", settings: "Settings & Security" }[currentPage] || "Admin Dashboard") : currentPage === "dashboard" && currentUser.role === "lecturer" ? "Analytics Dashboard" : currentPage === "dashboard" && currentUser.role === "learner" ? "Dashboard Home" : (titles[currentPage] || "Dashboard");
+  pageTitle.textContent = currentUser.role === "learner" && currentPage === "courses" ? "My Courses" : currentUser.role === "admin" ? ({ dashboard: "Overview", users: "User Management", courses: "Course & Academic Management", content: "Content Approval", assessments: "Assessments & Grades", admissions: "Admissions & Enrolment", attendance: "Attendance & Discipline", communication: "Communication Center", reports: "Reports & Analytics", settings: "Settings & Security" }[currentPage] || "Admin Dashboard") : currentPage === "dashboard" && currentUser.role === "lecturer" ? "Analytics Dashboard" : currentPage === "dashboard" && currentUser.role === "learner" ? "Dashboard Home" : (titles[currentPage] || "Dashboard");
   appScreen.dataset.page = currentPage;
   const role = currentUser.role;
   const map = {
@@ -843,7 +849,11 @@ function attachPageListeners() {
     catch (error) { showToast(error.message || "Could not update account"); }
   });
   document.querySelectorAll("[data-enroll-course]").forEach(button => button.onclick = () => updateEnrollment(button.dataset.enrollCourse, "enroll"));
-  document.querySelectorAll("[data-leave-course]").forEach(button => button.onclick = () => updateEnrollment(button.dataset.leaveCourse, "leave"));
+  document.querySelectorAll("[data-leave-course]").forEach(button => button.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    updateEnrollment(button.dataset.leaveCourse, "leave", button);
+  }));
   document.querySelectorAll("[data-quiz-id]").forEach(button => button.onclick = () => openQuizModal(button.dataset.quizId));
   document.querySelectorAll("[data-lesson-delete]").forEach(button => button.onclick = async () => {
     if (!window.confirm("Delete this lesson for the course?")) return;
@@ -910,7 +920,12 @@ function attachPageListeners() {
   document.querySelectorAll("[data-submit-id]").forEach(btn => {
     btn.addEventListener("click", () => openSubmitModal(btn.dataset.submitId));
   });
-  document.querySelectorAll("[data-module-toggle]").forEach(button => button.addEventListener("click", async () => {
+  document.querySelectorAll("[data-module-toggle]").forEach(button => button.addEventListener("click", async event => {
+    // These controls live inside course cards and can be rendered alongside
+    // other navigation controls. Keep a progress click local to the topic.
+    event.preventDefault();
+    event.stopPropagation();
+    const pageBeforeUpdate = currentPage;
     const courseId = button.dataset.courseId;
     const group = button.dataset.moduleGroup;
     const moduleIndex = Number(button.dataset.moduleIndex);
@@ -932,6 +947,8 @@ function attachPageListeners() {
       syncProgrammeModuleUI(courseId);
       showToast(error.message || "Could not save module progress");
     } finally {
+      // A topic completion should never change the learner's selected section.
+      if (currentUser && currentPage !== pageBeforeUpdate) currentPage = pageBeforeUpdate;
       button.disabled = false;
     }
   }));
@@ -1452,7 +1469,16 @@ function renderLecturerDashboard() {
 function renderLecturerContent() {
   const courses = cachedCourses.filter(c => c.instructorId === currentUser.id || c.instructor === currentUser.name);
   const lessonRows = courses.flatMap(course => Object.entries(course.modules || {}).flatMap(([group, lessons]) => lessons.map((title, index) => `<article class="lecturer-course-list"><span class="lecturer-course-icon">L</span><div><strong>${escapeHTML(title)}</strong><small>${escapeHTML(course.code)} · ${escapeHTML(group)}</small></div><button class="admin-inline-link" data-lesson-delete data-course-id="${escapeHTML(course.id)}" data-group="${escapeHTML(group)}" data-index="${index}">Delete lesson</button></article>`))).join("");
-  return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING · CONTENT</p><h1>Lessons &amp; content</h1><p>Build and manage lessons for your courses.</p></div><button class="lecturer-action" id="upload-materials-btn">Upload material</button></div><section class="lecturer-panel"><h2>Add a lesson</h2><form id="lesson-add-form" class="admin-broadcast-form"><label>Course<select name="courseId" required>${courses.map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Lesson group<input name="group" value="Lessons" required></label><label>Lesson title<input name="title" required maxlength="180"></label><button class="lecturer-action" type="submit">Add lesson</button></form><h2>Published lessons</h2>${lessonRows||'<p class="student-empty-state">No lessons yet. Add the first lesson above.</p>'}</section></div>`;
+  const materialRows = cachedMaterials.map(material => {
+    const course = courses.find(item => item.id === material.courseId);
+    const topic = course?.modules?.[material.group]?.[material.moduleIndex];
+    if (!course || !topic) return "";
+    const downloadUrl = material.fileContent
+      ? `data:${material.fileType || "application/octet-stream"};base64,${material.fileContent}`
+      : "";
+    return `<article class="lecturer-course-list"><span class="lecturer-course-icon">↳</span><div><strong>${escapeHTML(material.title || material.filename)}</strong><small>${escapeHTML(course.code)} · ${escapeHTML(material.group)} · ${escapeHTML(topic)}</small></div>${downloadUrl ? `<a class="admin-inline-link" href="${escapeHTML(downloadUrl)}" download="${escapeHTML(material.filename)}">Download</a>` : '<span class="admin-muted">File unavailable</span>'}</article>`;
+  }).join("");
+  return `<div class="lecturer-dashboard"><div class="lecturer-heading"><div><p class="lecturer-crumb">TEACHING · CONTENT</p><h1>Lessons &amp; content</h1><p>Build and manage lessons for your courses.</p></div><button class="lecturer-action" id="upload-materials-btn">Upload material</button></div><section class="lecturer-panel"><h2>Add a lesson</h2><form id="lesson-add-form" class="admin-broadcast-form"><label>Course<select name="courseId" required>${courses.map(c=>`<option value="${escapeHTML(c.id)}">${escapeHTML(c.title)}</option>`).join("")}</select></label><label>Lesson group<input name="group" value="Lessons" required></label><label>Lesson title<input name="title" required maxlength="180"></label><button class="lecturer-action" type="submit">Add lesson</button></form><h2>Published lessons</h2>${lessonRows||'<p class="student-empty-state">No lessons yet. Add the first lesson above.</p>'}<h2>Uploaded learning content</h2>${materialRows||'<p class="student-empty-state">No topic content uploaded yet.</p>'}</section></div>`;
 }
 
 function renderLecturerProgress() {
@@ -1609,10 +1635,40 @@ function renderProgrammeModules(course, expanded = false, label = "View modules"
     return '<section class="programme-module-group"><div class="programme-module-heading"><h4>' + escapeHTML(group) + '</h4><span data-module-group-summary="' + escapeHTML(group) + '">' + completedCount + '/' + modules.length + '</span></div><ol>' + modules.map((module, index) => {
       const completed = groupProgress[index] === true;
       const note = currentUser.moduleNotes?.[course.id]?.[group]?.[index] || "";
-      return '<li class="programme-module-item"><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '" aria-label="Mark ' + escapeHTML(module) + (completed ? ' incomplete' : ' complete') + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span></button><button type="button" class="programme-module-topic" data-open-topic data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">' + escapeHTML(module) + '</button><div class="programme-module-note"><label class="visually-hidden" for="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '">Notes for ' + escapeHTML(module) + '</label><textarea id="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '" data-module-note maxlength="5000" placeholder="Add notes for this topic…">' + escapeHTML(note) + '</textarea><button type="button" data-module-note-save data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">Save note</button><span data-module-note-status aria-live="polite"></span></div></li>';
+      return '<li class="programme-module-item"><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '" aria-label="Mark ' + escapeHTML(module) + (completed ? ' incomplete' : ' complete') + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span></button><button type="button" class="programme-module-topic" data-open-topic data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">' + escapeHTML(module) + '</button>' + renderTopicMaterials(course.id, group, index) + '<div class="programme-module-note"><label class="visually-hidden" for="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '">Notes for ' + escapeHTML(module) + '</label><textarea id="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '" data-module-note maxlength="5000" placeholder="Add notes for this topic…">' + escapeHTML(note) + '</textarea><button type="button" data-module-note-save data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">Save note</button><span data-module-note-status aria-live="polite"></span></div></li>';
     }).join("") + '</ol></section>';
   }
-  ).join("") + '</div></details>';
+  ).join("") + '</div>' + renderCourseMaterials(course) + '</details>';
+}
+
+function renderCourseMaterials(course) {
+  const materials = cachedMaterials.filter(material => {
+    if (material.courseId !== course.id) return false;
+    const topics = course.modules?.[material.group];
+    return !Array.isArray(topics) || !Number.isInteger(Number(material.moduleIndex)) ||
+      Number(material.moduleIndex) < 0 || Number(material.moduleIndex) >= topics.length;
+  });
+  if (!materials.length) return '';
+  return '<section class="topic-material-list course-material-list"><strong>Course learning content</strong>' + materials.map(material => {
+    const downloadUrl = material.fileContent
+      ? `data:${material.fileType || "application/octet-stream"};base64,${material.fileContent}`
+      : "";
+    const label = escapeHTML(material.title || material.filename || "Learning content");
+    return `<div>${downloadUrl ? `<a href="${escapeHTML(downloadUrl)}" download="${escapeHTML(material.filename || material.title || "content")}">${label}</a>` : `<span>${label} <small>(file unavailable; ask the facilitator to re-upload)</small></span>`}</div>`;
+  }).join("") + '</section>';
+}
+
+function renderTopicMaterials(courseId, group, moduleIndex) {
+  const materials = cachedMaterials.filter(material =>
+    material.courseId === courseId && material.group === group && Number(material.moduleIndex) === moduleIndex
+  );
+  if (!materials.length) return "";
+  return '<div class="topic-material-list"><strong>Learning content</strong>' + materials.map(material => {
+    const downloadUrl = material.fileContent
+      ? `data:${material.fileType || "application/octet-stream"};base64,${material.fileContent}`
+      : "";
+    return `<a ${downloadUrl ? `href="${escapeHTML(downloadUrl)}" download="${escapeHTML(material.filename)}"` : 'aria-disabled="true"'}>${escapeHTML(material.title || material.filename)}${material.fileContent ? "" : " (file unavailable)"}</a>`;
+  }).join("") + '</div>';
 }
 
 function openTopicLesson(courseId, group, moduleIndex) {
@@ -1627,7 +1683,7 @@ function openTopicLesson(courseId, group, moduleIndex) {
     { title: "Follow the process", body: `Break ${subject} into clear steps: define the goal, gather the relevant inputs, choose an appropriate method, and check the result. Explain why each step matters before moving to the next.` },
     { title: "Apply and review", body: `Use a realistic example from study or work. Describe how you would use ${subject}, what a good result should look like, and how you would identify and correct an error.` }
   ];
-  const body = `<p class="topic-lesson-intro">${escapeHTML(intro)}</p><div class="topic-lesson-list">${lessons.map((lesson, index) => `<section><span>LESSON ${index + 1}</span><h4>${escapeHTML(lesson.title)}</h4><p>${escapeHTML(lesson.body)}</p></section>`).join("")}</div><section class="topic-lesson-activity"><h4>Practice activity</h4><p>Create a short worked example for <strong>${escapeHTML(topic)}</strong>. Include the goal, the steps you followed, the result, and one thing you would improve next time.</p></section><p class="topic-lesson-source">Course: ${escapeHTML(course.title)} · ${escapeHTML(group)}</p>`;
+  const body = `<p class="topic-lesson-intro">${escapeHTML(intro)}</p>${renderTopicMaterials(courseId, group, moduleIndex)}<div class="topic-lesson-list">${lessons.map((lesson, index) => `<section><span>LESSON ${index + 1}</span><h4>${escapeHTML(lesson.title)}</h4><p>${escapeHTML(lesson.body)}</p></section>`).join("")}</div><section class="topic-lesson-activity"><h4>Practice activity</h4><p>Create a short worked example for <strong>${escapeHTML(topic)}</strong>. Include the goal, the steps you followed, the result, and one thing you would improve next time.</p></section><p class="topic-lesson-source">Course: ${escapeHTML(course.title)} · ${escapeHTML(group)}</p>`;
   openModal(topic, body, '<button type="button" class="btn btn-primary" id="topic-lesson-done">Done</button>');
   document.getElementById("topic-lesson-done").addEventListener("click", closeModal);
 }
@@ -1863,9 +1919,29 @@ function openPublishCourseModal() {
   };
 }
 
-async function updateEnrollment(courseId, action) {
-  try { await api("/enrollments", { method: "POST", body: JSON.stringify({ courseId, action }) }); await loadData(); renderNav(); renderPage(); showToast(action === "leave" ? "You left the course" : "You are enrolled in the course"); }
-  catch (error) { showToast(error.message || "Could not update enrolment"); }
+async function updateEnrollment(courseId, action, button = null) {
+  const page = currentPage;
+  const buttonText = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    if (action === "leave") button.textContent = "Leaving…";
+  }
+  try {
+    const result = await api("/enrollments", { method: "POST", body: JSON.stringify({ courseId, action }) });
+    if (!result) throw new Error("Could not update enrolment. Check your server connection.");
+    await loadData();
+    currentPage = page;
+    renderNav();
+    renderPage();
+    showToast(action === "leave" ? "You left the course" : "You are enrolled in the course");
+  } catch (error) {
+    showToast(error.message || "Could not update enrolment");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = buttonText;
+    }
+  }
 }
 
 async function submitAnnouncementForm(event, form) {
@@ -1957,23 +2033,73 @@ function openCreateAssessmentModal() {
 }
 
 function openUploadModal() {
-  openModal("Upload Materials",
-    '<div class="form-group"><label>Course</label><select class="form-control" id="upload-course">' +
-    cachedCourses.map(c => '<option>' + c.code + '</option>').join("") + '</select></div>' +
-    '<div class="form-group"><label>Title</label><input class="form-control" id="upload-title" /></div>' +
-    '<div class="form-group"><label>File</label><div class="file-drop" id="file-drop"><div>📁 Drop files</div><div class="filename" id="file-name"></div></div>' +
-    '<input type="file" id="file-input" style="display:none" /></div>',
+  const courses = cachedCourses.filter(course => currentUser.role !== "lecturer" || course.instructorId === currentUser.id || course.instructor === currentUser.name);
+  if (!courses.length) { showToast("There are no courses available to upload content to."); return; }
+  const courseOptions = courses.map(course => `<option value="${escapeHTML(course.id)}">${escapeHTML(course.title)}</option>`).join("");
+  openModal("Upload Topic Content",
+    `<div class="form-group"><label for="upload-course">Course</label><select class="form-control" id="upload-course">${courseOptions}</select></div>
+    <div class="form-group"><label for="upload-group">Topic group</label><select class="form-control" id="upload-group"></select></div>
+    <div class="form-group"><label for="upload-topic">Topic</label><select class="form-control" id="upload-topic"></select></div>
+    <div class="form-group"><label for="upload-title">Content title</label><input class="form-control" id="upload-title" maxlength="180" required /></div>
+    <div class="form-group"><label for="file-input">File (up to 5 MB)</label><div class="file-drop" id="file-drop"><div>Drop a file or click to choose</div><div class="filename" id="file-name"></div></div>
+    <input type="file" id="file-input" style="display:none" /></div>`,
     '<button class="btn btn-ghost" id="modal-cancel">Cancel</button><button class="btn btn-primary" id="modal-upload">Upload</button>'
   );
+  const courseSelect = document.getElementById("upload-course");
+  const groupSelect = document.getElementById("upload-group");
+  const topicSelect = document.getElementById("upload-topic");
+  const updateTopicOptions = () => {
+    const course = courses.find(item => item.id === courseSelect.value);
+    const groups = Object.entries(course?.modules || {});
+    groupSelect.innerHTML = groups.map(([group]) => `<option value="${escapeHTML(group)}">${escapeHTML(group)}</option>`).join("");
+    const updateTopics = () => {
+      const topics = course?.modules?.[groupSelect.value] || [];
+      topicSelect.innerHTML = topics.map((topic, index) => `<option value="${index}">${escapeHTML(topic)}</option>`).join("");
+    };
+    groupSelect.onchange = updateTopics;
+    updateTopics();
+  };
+  courseSelect.onchange = updateTopicOptions;
+  updateTopicOptions();
   setupFileDrop();
   document.getElementById("modal-cancel").onclick = closeModal;
   document.getElementById("modal-upload").onclick = async () => {
+    const title = document.getElementById("upload-title").value.trim();
+    if (!title) { showToast("Enter a title for this content"); return; }
     if (!selectedFile) { showToast("Select a file"); return; }
+    if (selectedFile.size > 5 * 1024 * 1024) { showToast("Files must be 5 MB or smaller"); return; }
+    if (!topicSelect.value) { showToast("Choose a topic for this content"); return; }
+    const uploadButton = document.getElementById("modal-upload");
+    uploadButton.disabled = true;
     try {
-      await api("/materials", { method: "POST", body: JSON.stringify({ course: document.getElementById("upload-course").value, title: document.getElementById("upload-title").value, filename: selectedFile.name }) });
-    } catch (e) {}
-    closeModal();
-    showToast("Materials uploaded!");
+      const fileContent = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("Could not read the selected file"));
+        reader.readAsDataURL(selectedFile);
+      });
+      const result = await api("/materials", {
+        method: "POST",
+        body: JSON.stringify({
+          courseId: courseSelect.value,
+          group: groupSelect.value,
+          moduleIndex: Number(topicSelect.value),
+          title,
+          filename: selectedFile.name,
+          fileType: selectedFile.type || "application/octet-stream",
+          fileContent
+        })
+      });
+      if (!result) throw new Error("Could not upload content. Check your server connection.");
+      closeModal();
+      await loadData();
+      renderNav();
+      renderPage();
+      showToast("Topic content uploaded");
+    } catch (error) {
+      showToast(error.message || "Could not upload content");
+      uploadButton.disabled = false;
+    }
   };
 }
 
