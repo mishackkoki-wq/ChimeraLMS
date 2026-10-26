@@ -738,13 +738,13 @@ function renderNav() {
   ).join("");
   const courseMarkup = currentUser.role === "learner" ? '<div class="sidebar-course-group"><p class="sidebar-section-label">MY COURSES</p>' +
     learnerActiveCourses().slice(0, 5).map(course => {
-      const progress = Math.max(0, Math.min(100, Number(course.progress) || 0));
+      const progress = courseLearningStats(course).percent;
       const code = escapeHTML(course.code || "Course");
       const title = escapeHTML(course.title || "Course");
       const nextAssignment = learnerUpcomingAssignments().find(assignment => assignment.course === course.code || assignment.course === course.title);
       const days = nextAssignment ? Math.max(0, Math.ceil((parseDateKey(assignmentDueKey(nextAssignment)) - new Date(new Date().setHours(0, 0, 0, 0))) / 86400000)) : null;
       const dueLabel = days === null ? "No upcoming due date" : days === 0 ? "Due today" : days + (days === 1 ? " day to due date" : " days to due date");
-      return '<button type="button" class="sidebar-course-item" data-course-page="courses" title="' + title + ' — ' + progress + '% complete"><span class="sidebar-course-icon" aria-hidden="true">◇</span><span class="sidebar-course-copy"><span class="sidebar-course-title">' + code + ' · ' + title + '</span><span class="sidebar-course-due">' + dueLabel + '</span></span><span class="sidebar-course-percent">' + progress + '%<i><b style="width:' + progress + '%"></b></i></span></button>';
+      return '<button type="button" class="sidebar-course-item" data-course-page="courses" data-course-progress="' + escapeHTML(course.id) + '" title="' + title + ' — ' + progress + '% complete"><span class="sidebar-course-icon" aria-hidden="true">◇</span><span class="sidebar-course-copy"><span class="sidebar-course-title">' + code + ' · ' + title + '</span><span class="sidebar-course-due">' + dueLabel + '</span></span><span class="sidebar-course-percent">' + progress + '%<i><b style="width:' + progress + '%"></b></i></span></button>';
     }).join("") + '</div>' : "";
   sidebarNav.innerHTML = (currentUser.role === "learner" ? '<p class="sidebar-section-label sidebar-main-label">MAIN MENU</p>' : "") + navMarkup + courseMarkup;
   sidebarNav.querySelectorAll(".nav-item").forEach(el => {
@@ -1214,7 +1214,34 @@ function courseModuleStats(course) {
       if (currentUser?.moduleProgress?.[course.id]?.[group]?.[index] === true) completed++;
     });
   });
-  return { total, completed, percent: total ? Math.round(completed / total * 100) : Math.max(0, Math.min(100, Number(course.progress) || 0)) };
+  return { total, completed, percent: total ? Math.round(completed / total * 100) : 0 };
+}
+
+function courseLearningStats(course) {
+  const modules = courseModuleStats(course);
+  const tasks = cachedAssignments.filter(assignment => assignment.courseId === course.id);
+  const completedTasks = tasks.filter(assignment => assignment.status === "completed").length;
+  const total = modules.total + tasks.length;
+  const completed = modules.completed + completedTasks;
+  return {
+    total,
+    completed,
+    totalModules: modules.total,
+    completedModules: modules.completed,
+    totalTasks: tasks.length,
+    completedTasks,
+    percent: total ? Math.round(completed / total * 100) : 0
+  };
+}
+
+function overallLearningStats(courses) {
+  const totals = courses.reduce((result, course) => {
+    const stats = courseLearningStats(course);
+    result.total += stats.total;
+    result.completed += stats.completed;
+    return result;
+  }, { total: 0, completed: 0 });
+  return { ...totals, percent: totals.total ? Math.round(totals.completed / totals.total * 100) : 0 };
 }
 
 function setModuleCompletion(courseId, group, moduleIndex, completed) {
@@ -1228,15 +1255,44 @@ function setModuleCompletion(courseId, group, moduleIndex, completed) {
 function syncProgrammeModuleUI(courseId) {
   const course = cachedCourses.find(item => item.id === courseId);
   if (!course) return;
-  const stats = courseModuleStats(course);
+  const moduleStats = courseModuleStats(course);
+  const stats = courseLearningStats(course);
   document.querySelectorAll(".student-course-card, .registered-programme-card").forEach(card => {
     if (card.dataset.courseCardId !== courseId) return;
     const track = card.querySelector(".student-progress-track span");
     const progressLabel = card.querySelector(".student-course-progress small");
     if (track) track.style.width = `${stats.percent}%`;
-    if (progressLabel) progressLabel.textContent = stats.total ? `${stats.percent}% complete · ${stats.completed}/${stats.total} modules` : `${stats.percent}% complete`;
+    if (progressLabel) progressLabel.textContent = `${stats.percent}% complete · ${stats.completed}/${stats.total} learning items`;
     const moduleSummary = card.querySelector(".programme-module-completion");
-    if (moduleSummary) moduleSummary.textContent = `${stats.completed}/${stats.total} complete`;
+    if (moduleSummary) moduleSummary.textContent = `${moduleStats.completed}/${moduleStats.total} complete`;
+    card.querySelectorAll("[data-module-group-summary]").forEach(summary => {
+      const group = summary.dataset.moduleGroupSummary;
+      const total = course.modules?.[group]?.length || 0;
+      const completed = Object.values(currentUser.moduleProgress?.[courseId]?.[group] || {}).filter(Boolean).length;
+      summary.textContent = `${completed}/${total}`;
+    });
+    card.querySelectorAll("[data-module-toggle]").forEach(button => {
+      const isCompleted = currentUser.moduleProgress?.[courseId]?.[button.dataset.moduleGroup]?.[button.dataset.moduleIndex] === true;
+      button.dataset.completed = String(isCompleted);
+      button.setAttribute("aria-pressed", String(isCompleted));
+      button.classList.toggle("is-completed", isCompleted);
+      button.querySelector(".module-check").textContent = isCompleted ? "✓" : "";
+    });
+  });
+  document.querySelectorAll(".learning-path-row").forEach(card => {
+    if (card.dataset.courseCardId !== courseId) return;
+    const track = card.querySelector(".learning-path-progress .progress-fill");
+    const label = card.querySelector(".learning-path-progress small");
+    if (track) track.style.width = `${stats.percent}%`;
+    if (label) label.textContent = `${stats.percent}% complete · ${stats.completed}/${stats.total} learning items`;
+    const moduleSummary = card.querySelector(".programme-module-completion");
+    if (moduleSummary) moduleSummary.textContent = `${moduleStats.completed}/${moduleStats.total} complete`;
+    card.querySelectorAll("[data-module-group-summary]").forEach(summary => {
+      const group = summary.dataset.moduleGroupSummary;
+      const total = course.modules?.[group]?.length || 0;
+      const completed = Object.values(currentUser.moduleProgress?.[courseId]?.[group] || {}).filter(Boolean).length;
+      summary.textContent = `${completed}/${total}`;
+    });
     card.querySelectorAll("[data-module-toggle]").forEach(button => {
       const isCompleted = currentUser.moduleProgress?.[courseId]?.[button.dataset.moduleGroup]?.[button.dataset.moduleIndex] === true;
       button.dataset.completed = String(isCompleted);
@@ -1247,12 +1303,16 @@ function syncProgrammeModuleUI(courseId) {
   });
   const activeCourses = learnerActiveCourses();
   if (activeCourses.length) {
-    const overall = Math.round(activeCourses.reduce((sum, item) => sum + courseModuleStats(item).percent, 0) / activeCourses.length);
+    const overall = overallLearningStats(activeCourses).percent;
     const ring = document.getElementById("learner-overall-progress");
     const value = document.getElementById("learner-overall-progress-value");
-    if (ring) ring.style.setProperty("--progress-value", overall);
+    if (ring) {
+      ring.style.setProperty("--progress-value", overall);
+      ring.setAttribute("aria-label", `Overall learning progress: ${overall}%`);
+    }
     if (value) value.textContent = `${overall}%`;
   }
+  renderNav();
 }
 
 function learnerUpcomingAssignments() {
@@ -1325,15 +1385,15 @@ function renderLearnerDashboard() {
   const upcoming = learnerUpcomingAssignments();
   const todayKey = localDateKey(new Date());
   const overdue = cachedAssignments.filter(assignment => assignment.status !== "completed" && assignmentDueKey(assignment) && assignmentDueKey(assignment) < todayKey);
-  const progress = courses.length ? Math.round(courses.reduce((sum, course) => sum + courseModuleStats(course).percent, 0) / courses.length) : 0;
+  const progress = overallLearningStats(courses).percent;
   const firstName = escapeHTML((currentUser.name || "Learner").trim().split(/\s+/)[0]);
   const dashboardAvatar = currentUser.profileImage
     ? `<img class="dashboard-profile-picture" src="${escapeHTML(currentUser.profileImage)}" alt="${escapeHTML(currentUser.name || "Learner")} profile picture" />`
     : `<div class="dashboard-profile-picture dashboard-profile-initials" aria-label="${escapeHTML(currentUser.name || "Learner")} profile">${escapeHTML(currentUser.avatar || (currentUser.name || "L").slice(0, 2).toUpperCase())}</div>`;
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const courseCards = courses.length ? courses.map(course => {
-    const courseStats = courseModuleStats(course);
-    return `<article class="student-course-card" data-course-card-id="${escapeHTML(course.id)}"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseStats.percent}%"></span></div><small>${courseStats.percent}% complete${courseStats.total ? ` · ${courseStats.completed}/${courseStats.total} modules` : ""}</small></div><button type="button" class="student-text-link student-course-continue" data-dashboard-page="courses">Continue learning <span aria-hidden="true">→</span></button>${renderProgrammeModules(course, false, "Programme modules")}</article>`;
+    const courseStats = courseLearningStats(course);
+    return `<article class="student-course-card" data-course-card-id="${escapeHTML(course.id)}"><div class="student-course-top"><span class="student-course-code">${escapeHTML(course.code || "COURSE")}</span><span class="student-course-status">Registered programme</span></div><h3>${escapeHTML(course.title)}</h3><p>${escapeHTML(course.instructor || "Chimera Learning")}</p><div class="student-course-progress"><div class="student-progress-track"><span style="width:${courseStats.percent}%"></span></div><small>${courseStats.percent}% complete · ${courseStats.completed}/${courseStats.total} learning items</small></div><button type="button" class="student-text-link student-course-continue" data-dashboard-page="courses">Continue learning <span aria-hidden="true">→</span></button>${renderProgrammeModules(course, false, "Programme modules")}</article>`;
   }).join("") : '<div class="student-empty-state">No registered programme is linked to this learner account yet. Once a programme is registered, its course and modules will appear here.</div>';
   const assignmentRows = upcoming.length ? upcoming.slice(0, 4).map(assignment => {
     const dueKey = assignmentDueKey(assignment);
@@ -1349,7 +1409,7 @@ function renderLearnerDashboard() {
 
   return `<div class="student-dashboard">
     <section class="student-welcome"><div><p class="student-panel-eyebrow">${today}</p><h1>Welcome to Chimera LMS, ${firstName}</h1><p>Keep learning, keep building. Here’s your study overview.</p></div><div class="student-welcome-visual">${dashboardAvatar}<img class="welcome-banner-image" src="assets/chimera-welcome-banner.png" alt="Chimera Holdings" /></div></section>
-    <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" id="learner-overall-progress" style="--progress-value:${progress}"><span id="learner-overall-progress-value">${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Average progress across current courses</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
+    <section class="student-metrics" aria-label="Learning overview"><article class="student-metric-card overall-progress-card"><div class="progress-ring" id="learner-overall-progress" role="img" aria-label="Overall learning progress: ${progress}%" style="--progress-value:${progress}"><span id="learner-overall-progress-value">${progress}%</span></div><div><p class="student-panel-eyebrow">OVERALL PROGRESS</p><h2>Your learning journey</h2><small>Based on completed course modules and submitted tasks.</small></div></article><article class="student-metric-card"><span class="metric-icon">▤</span><p class="student-panel-eyebrow">CURRENT COURSES</p><strong>${courses.length}</strong><small>Active courses</small></article><article class="student-metric-card"><span class="metric-icon">◷</span><p class="student-panel-eyebrow">UPCOMING ASSIGNMENTS</p><strong>${upcoming.length}</strong><small>Still to complete</small></article></section>
     <div class="student-dashboard-grid"><div class="student-dashboard-main"><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Current courses</h2></div><button type="button" class="student-text-link" data-dashboard-page="courses">All courses <span aria-hidden="true">→</span></button></div><div class="student-courses-grid">${courseCards}</div></section><section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">WHAT’S NEXT</p><h2>Upcoming assignments</h2></div><button type="button" class="student-text-link" data-dashboard-page="assignments">All assignments <span aria-hidden="true">→</span></button></div><div class="student-assignment-list">${assignmentRows}</div></section></div><aside class="student-dashboard-side"><div id="student-calendar"></div><section id="learner-notifications" class="student-panel notifications-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">STAY ON TRACK</p><h2>Notifications</h2></div><span class="notification-count">${notifications.length}</span></div><ul class="notification-list">${notificationMarkup}</ul></section>${cachedAnnouncements.length ? `<section class="student-panel"><div class="student-panel-title"><div><p class="student-panel-eyebrow">COURSE UPDATES</p><h2>Announcements</h2></div></div>${cachedAnnouncements.slice(0,4).map(a=>`<article class="notification-item"><span class="notification-mark">i</span><span><strong>${escapeHTML(a.title)}</strong><small>${escapeHTML(a.message)}</small></span></article>`).join("")}</section>` : ""}</aside></div>
   </div>`;
 }
@@ -1523,7 +1583,7 @@ function renderCourses(role) {
     const catalog = list.filter(course => course.catalogOnly);
     return (registered.length ? '<div class="registered-programme-list">' + registered.map(course =>
       '<article class="registered-programme-card" data-course-card-id="' + escapeHTML(course.id) + '"><div class="registered-programme-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h3>' + escapeHTML(course.title) + '</h3><p>' + escapeHTML(course.instructor || "Chimera Learning") + '</p></div><span class="student-course-status">Registered</span><button type="button" class="btn btn-sm btn-ghost" data-leave-course="' + escapeHTML(course.id) + '">Leave</button></div>' +
-      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + courseModuleStats(course).percent + '%"></span></div><small>' + courseModuleStats(course).percent + '% complete</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
+      '<div class="student-course-progress"><div class="student-progress-track"><span style="width:' + courseLearningStats(course).percent + '%"></span></div><small>' + courseLearningStats(course).percent + '% complete · ' + courseLearningStats(course).completed + '/' + courseLearningStats(course).total + ' learning items</small></div>' + renderProgrammeModules(course, true, "Programme modules") + '</article>'
     ).join("") + '</div>' : '<div class="student-empty-state">No registered programme is linked to this learner account.</div>') +
       (catalog.length ? '<section class="card"><h3>Course catalog</h3><div class="course-grid">' + catalog.map(course => '<article class="course-card"><div class="code">' + escapeHTML(course.code) + '</div><h4>' + escapeHTML(course.title) + '</h4><div class="meta">' + escapeHTML(course.instructor || "Chimera Learning") + '</div><span class="student-course-status">Available</span><button type="button" class="btn btn-sm btn-primary" data-enroll-course="' + escapeHTML(course.id) + '">Enroll</button></article>').join("") + '</div></section>' : '');
   }
@@ -1539,7 +1599,7 @@ function renderProgrammeModules(course, expanded = false, label = "View modules"
   return '<details class="programme-modules" data-course-modules="' + escapeHTML(course.id) + '"' + (expanded ? ' open' : '') + '><summary><span>' + escapeHTML(label) + '</span><span class="programme-module-completion">' + stats.completed + '/' + stats.total + ' complete</span></summary><div class="programme-module-groups">' + groups.map(([group, modules], groupIndex) => {
     const groupProgress = currentUser.moduleProgress?.[course.id]?.[group] || {};
     const completedCount = modules.reduce((count, _, index) => count + (groupProgress[index] === true ? 1 : 0), 0);
-    return '<section class="programme-module-group"><div class="programme-module-heading"><h4>' + escapeHTML(group) + '</h4><span>' + completedCount + '/' + modules.length + '</span></div><ol>' + modules.map((module, index) => {
+    return '<section class="programme-module-group"><div class="programme-module-heading"><h4>' + escapeHTML(group) + '</h4><span data-module-group-summary="' + escapeHTML(group) + '">' + completedCount + '/' + modules.length + '</span></div><ol>' + modules.map((module, index) => {
       const completed = groupProgress[index] === true;
       const note = currentUser.moduleNotes?.[course.id]?.[group]?.[index] || "";
       return '<li class="programme-module-item"><button type="button" class="programme-module-toggle' + (completed ? ' is-completed' : '') + '" data-module-toggle data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '" data-completed="' + completed + '" aria-pressed="' + completed + '" aria-label="Mark ' + escapeHTML(module) + (completed ? ' incomplete' : ' complete') + '"><span class="module-check" aria-hidden="true">' + (completed ? '✓' : '') + '</span></button><button type="button" class="programme-module-topic" data-open-topic data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">' + escapeHTML(module) + '</button><div class="programme-module-note"><label class="visually-hidden" for="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '">Notes for ' + escapeHTML(module) + '</label><textarea id="module-note-' + escapeHTML(course.id) + '-' + groupIndex + '-' + index + '" data-module-note maxlength="5000" placeholder="Add notes for this topic…">' + escapeHTML(note) + '</textarea><button type="button" data-module-note-save data-course-id="' + escapeHTML(course.id) + '" data-module-group="' + escapeHTML(group) + '" data-module-index="' + index + '">Save note</button><span data-module-note-status aria-live="polite"></span></div></li>';
@@ -1569,8 +1629,8 @@ function renderLearningPaths() {
   const courses = learnerActiveCourses();
   return '<div class="card"><h3>Your learning paths</h3><p style="color:var(--text-muted)">Continue building skills through the courses in your Chimera LMS programme.</p>' +
     (courses.length ? '<div class="learning-path-list">' + courses.map(course => {
-      const progress = Math.max(0, Math.min(100, Number(course.progress) || 0));
-      return '<article class="learning-path-row"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h4>' + escapeHTML(course.title) + '</h4><p>' + escapeHTML(course.instructor || "Chimera LMS course") + '</p></div><div class="learning-path-progress"><strong>' + progress + '%</strong><div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div><small>Course progress</small></div></article>';
+      const stats = courseLearningStats(course);
+      return '<article class="learning-path-row" data-course-card-id="' + escapeHTML(course.id) + '"><div class="learning-path-heading"><div><span class="course-code">' + escapeHTML(course.code) + '</span><h4>' + escapeHTML(course.title) + '</h4><p>' + escapeHTML(course.instructor || "Chimera LMS course") + '</p></div><div class="learning-path-progress"><strong>' + stats.percent + '%</strong><div class="progress-bar"><div class="progress-fill" style="width:' + stats.percent + '%"></div></div><small>' + stats.percent + '% complete · ' + stats.completed + '/' + stats.total + ' learning items</small></div></div>' + renderProgrammeModules(course, false, "Modules in this learning path") + '</article>';
     }).join("") + '</div>' : '<div class="student-empty-state">No active courses are available in your learning path yet.</div>') + '</div>';
 }
 
@@ -1582,8 +1642,8 @@ function renderPracticeTests() {
 
 function renderAchievements() {
   const completedAssignments = cachedAssignments.filter(assignment => assignment.status === "completed").length;
-  const completedCourses = cachedCourses.filter(course => course.status === "completed").length;
-  const highProgressCourses = cachedCourses.filter(course => Number(course.progress) >= 90).length;
+  const completedCourses = learnerActiveCourses().filter(course => courseLearningStats(course).percent === 100).length;
+  const highProgressCourses = learnerActiveCourses().filter(course => courseLearningStats(course).percent >= 90).length;
   const milestones = [
     { title: "First steps", detail: "Submit your first course assignment", earned: completedAssignments > 0, icon: "✓" },
     { title: "Course finisher", detail: "Complete a course", earned: completedCourses > 0, icon: "◆" },
@@ -1608,7 +1668,7 @@ function openQuizModal(assignmentId) {
   document.getElementById("quiz-submit").onclick=async()=>{
     const answers=questions.map((_,i)=>{const selected=document.querySelector(`input[name="quiz-${i}"]:checked`);return selected?Number(selected.value):-1;});
     if(answers.includes(-1)){showToast("Answer every question before submitting");return;}
-    try{const result=await api("/quiz/submit",{method:"POST",body:JSON.stringify({assignmentId,answers})});closeModal();await loadData();renderPage();showToast(`Quiz submitted: ${result.score}%`);}
+    try{const result=await api("/quiz/submit",{method:"POST",body:JSON.stringify({assignmentId,answers})});closeModal();await loadData();renderNav();renderPage();showToast(`Quiz submitted: ${result.score}%`);}
     catch(error){showToast(error.message||"Could not submit quiz");}
   };
 }
@@ -1630,7 +1690,10 @@ function renderGrades() {
 }
 
 function renderProgress() {
-  const overall = cachedCourses.length ? Math.round(cachedCourses.reduce((sum, course) => sum + Math.max(0, Math.min(100, Number(course.progress) || 0)), 0) / cachedCourses.length) : 0;
+  const courses = currentUser.role === "learner" ? learnerActiveCourses() : cachedCourses;
+  const overall = currentUser.role === "learner"
+    ? overallLearningStats(courses).percent
+    : cachedCourses.length ? Math.round(cachedCourses.reduce((sum, course) => sum + Math.max(0, Math.min(100, Number(course.progress) || 0)), 0) / cachedCourses.length) : 0;
   return '<div class="stats-grid">' +
     '<div class="stat-card"><div class="label">Overall Progress</div><div class="value">' + overall + '%</div>' +
     '<div class="progress-bar" style="margin-top:0.75rem"><div class="progress-fill" style="width:' + overall + '%"></div></div></div>' +
@@ -1638,11 +1701,12 @@ function renderProgress() {
     '<div class="stat-card"><div class="label">Submitted</div><div class="value">' +
     cachedAssignments.filter(a => a.status === "completed").length + ' / ' + cachedAssignments.length + '</div></div></div>' +
     '<div class="card"><h3>Course Progress</h3>' +
-    cachedCourses.map(c =>
-      '<div style="margin-bottom:1.25rem"><div style="display:flex;justify-content:space-between">' +
-      '<span>' + c.code + ' – ' + c.title + '</span><span>' + (c.progress||0) + '%</span></div>' +
-      '<div class="progress-bar"><div class="progress-fill" style="width:' + (c.progress||0) + '%"></div></div></div>'
-    ).join("") + '</div>';
+    courses.map(c => {
+      const progress = currentUser.role === "learner" ? courseLearningStats(c).percent : Math.max(0, Math.min(100, Number(c.progress) || 0));
+      return '<div style="margin-bottom:1.25rem"><div style="display:flex;justify-content:space-between">' +
+      '<span>' + escapeHTML(c.code) + ' – ' + escapeHTML(c.title) + '</span><span>' + progress + '%</span></div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div></div>';
+    }).join("") + '</div>';
 }
 
 function renderAssessments() {
@@ -1774,6 +1838,7 @@ function openSubmitModal(assignmentId) {
         showToast(`${isPractical ? "Practical" : "Assignment"} submitted successfully`);
       }
       closeModal();
+      renderNav();
       renderPage();
     } catch (error) {
       submitButton.disabled = false;

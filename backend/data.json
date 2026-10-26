@@ -7,15 +7,16 @@
       "role": "learner",
       "avatar": "ES",
       "status": "Active",
-      "demo": true,
-      "lastLogin": "2026-10-13T08:58:01.555Z",
+      "lastLogin": "2026-10-26T08:16:42.344Z",
       "identityNumber": "",
       "passportNumber": "",
       "dateOfBirth": "",
       "gender": "",
       "phone": "",
       "lastSchool": "",
-      "selectedCourse": "Data Science Practitioner"
+      "selectedCourse": "Data Science Practitioner",
+      "passwordSalt": "a7a7bbeab9257aed174dc188f8bf080d",
+      "passwordHash": "bc0093d1ee4754024cd93ed95a8de61de8c19691314ac054c6c0f305d2efbb8cc97de19fb8d86deef0be35be976f3e212cd8cbdcad4263fb5b2297900bf3b939"
     },
     {
       "id": "u2",
@@ -100,14 +101,31 @@
       "recoveryQuestion": "What was the name of your first school?",
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
       "selectedCourse": "Data Science Practitioner",
-      "lastLogin": "2026-10-15T12:19:46.454Z",
+      "lastLogin": "2026-10-26T11:18:19.216Z",
       "moduleProgress": {
         "cert-data-science": {
           "Practical Skill Modules": {
-            "0": true
+            "0": true,
+            "1": true,
+            "2": true,
+            "4": true,
+            "5": true,
+            "6": true,
+            "7": true
           },
           "Work Experience Modules": {
-            "2": true
+            "0": true,
+            "1": true,
+            "2": true,
+            "3": true
+          },
+          "Knowledge Modules": {
+            "0": true,
+            "1": true,
+            "2": true,
+            "3": true,
+            "4": true,
+            "5": true
           }
         }
       }
@@ -451,6 +469,437 @@
       "submittedAt": "2026-10-20T10:31:30.181Z"
     }
   ],
-  "audit_log": [],
-  "attendance": []
+  "audit_log": [
+    {
+      "id": "97ccfaf7-c67c-47d4-ae6a-b2a11e0a4ff3",
+      "time": "2026-10-26T11:20:32.841Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Use spreadsheets to analyse and visualise data in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "1e1843cd-8e32-4001-9c2d-6f9a47c64478",
+      "time": "2026-10-26T11:20:17.626Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Apply data analysis techniques to uncover patterns and trends in datasets in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "d9576448-318a-4976-b590-7e717d38b5e5",
+      "time": "2026-10-26T11:20:03.167Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "b3dc012c-ae5a-490c-8298-fb3b7dfad743",
+      "time": "2026-10-26T11:19:57.436Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Statistics essentials for data analytics in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "f13ac04a-cd03-4457-b71e-f4a3c17fbb52",
+      "time": "2026-10-26T11:19:44.630Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Prepare and present descriptive analytic reports for decision making in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "50ee85e3-73a2-4d09-aaa1-a42b1ca6549e",
+      "time": "2026-10-26T11:19:26.122Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Collect and pre-process large amounts of unruly data in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "ecbdadd7-b999-4481-882e-2db6db753e20",
+      "time": "2026-10-26T11:18:48.541Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Apply statistical tools and techniques (Level 5, 4 credits) in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "4a432706-fbfb-4e9d-a862-5bd2440c8daa",
+      "time": "2026-10-22T09:40:11.489Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Basic statistics for data analytics in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "94814297-ed4e-4299-81d3-1d6e44339a9c",
+      "time": "2026-10-22T09:40:09.901Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Computing theory in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "b6fdb8c2-4bc9-479f-b0ef-a722692260c2",
+      "time": "2026-10-22T09:40:08.719Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Computers and computing systems in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "a96c93cd-df93-4cfd-9fae-0faed659c0c2",
+      "time": "2026-10-22T09:40:07.087Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Statistical data analysis processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "582e967f-ca18-4011-98d5-09c8162d2865",
+      "time": "2026-10-22T09:40:05.763Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Data visualisation and reporting processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "73fd4a27-e49d-4b40-b554-fc514a8896de",
+      "time": "2026-10-22T09:40:04.623Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Capstone project using an appropriate toolkit in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "d4806b6c-cb7d-46b9-b4c1-ef5066f9bded",
+      "time": "2026-10-22T09:39:46.066Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "04d96175-9a9b-44e3-9c00-b2ef4258b568",
+      "time": "2026-10-22T09:39:44.521Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Logical thinking and basic calculations: refresher in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "f75f6d77-8560-4bde-94e1-0855bf86c36b",
+      "time": "2026-10-22T09:30:09.201Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Apply logical thinking and maths refresher in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "0c8c3d43-8411-41ca-83f0-5e593d257360",
+      "time": "2026-10-22T09:30:07.864Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "ef3f07da-33ea-4a30-ac86-ce9e2762a833",
+      "time": "2026-10-22T09:28:33.252Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Reopened lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "52c870fe-ae76-40f5-be6c-a9f9dd31d9f4",
+      "time": "2026-10-22T09:28:31.688Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Reopened lesson Data visualisation and reporting processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "99ebea7f-4456-4a50-b4f6-70705b2ae3d1",
+      "time": "2026-10-22T09:28:30.012Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Reopened lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "6b2a983d-640d-4bd1-8689-8993f96fae98",
+      "time": "2026-10-22T09:28:28.774Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Reopened lesson Apply logical thinking and maths refresher in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "1899ad8e-e015-4b20-bdb5-6e413b585f06",
+      "time": "2026-10-22T09:28:26.439Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Reopened lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "e171ef3a-dde8-4439-a6c3-7106be67e459",
+      "time": "2026-10-22T09:26:46.167Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "2810c665-8feb-4ab2-8676-7ec8f4017fb8",
+      "time": "2026-10-22T09:24:10.478Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "status": "Success"
+    },
+    {
+      "id": "2eb36d37-7578-4bed-8b50-24ba7d07ca66",
+      "time": "2026-10-20T12:26:44.862Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Completed lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "status": "Success"
+    }
+  ],
+  "attendance": [],
+  "notifications": [
+    {
+      "id": "dc25ed64-552b-4af3-ab96-b044c3c11ac7",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Use spreadsheets to analyse and visualise data in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:20:32.841Z"
+    },
+    {
+      "id": "ed81b555-0e19-40b9-95f5-192ced639eec",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Apply data analysis techniques to uncover patterns and trends in datasets in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:20:17.627Z"
+    },
+    {
+      "id": "0d316643-bd39-4cab-85ae-244c9a94d6d2",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:20:03.167Z"
+    },
+    {
+      "id": "8f2a5123-a352-47e9-8917-c2e25e550473",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Statistics essentials for data analytics in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:19:57.436Z"
+    },
+    {
+      "id": "9ce79312-02ac-4636-b92a-0195ebda37ed",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Prepare and present descriptive analytic reports for decision making in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:19:44.630Z"
+    },
+    {
+      "id": "e7b2ec4b-3dd6-4407-8635-80ce0bffc73d",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Collect and pre-process large amounts of unruly data in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:19:26.122Z"
+    },
+    {
+      "id": "b06ac918-cfdd-401f-95de-0ef0d5d4ff96",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Apply statistical tools and techniques (Level 5, 4 credits) in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:18:48.541Z"
+    },
+    {
+      "id": "dfd4767b-9a4b-4e46-ab3c-7706809ba6e8",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Basic statistics for data analytics in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:11.489Z"
+    },
+    {
+      "id": "d02ffd5d-6839-42e7-aa91-bbd9242e643d",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Computing theory in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:09.901Z"
+    },
+    {
+      "id": "b68d3a0e-b399-4007-9585-85533640f6f1",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Computers and computing systems in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:08.719Z"
+    },
+    {
+      "id": "cea29d53-89d1-49c0-9a24-775a362e9dc7",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Statistical data analysis processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:07.087Z"
+    },
+    {
+      "id": "4ffc46c7-1612-47ea-be9d-30b05ad2e207",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Data visualisation and reporting processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:05.764Z"
+    },
+    {
+      "id": "441b20b5-f1cc-4b7c-948d-a7d3ef87bb6b",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Capstone project using an appropriate toolkit in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:40:04.624Z"
+    },
+    {
+      "id": "a893a554-06bc-4413-8616-97b7c46e32a2",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:39:46.066Z"
+    },
+    {
+      "id": "bbe85e91-00ce-4a3a-9d9c-21b7fdb5041c",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Logical thinking and basic calculations: refresher in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:39:44.521Z"
+    },
+    {
+      "id": "fcf66ab5-0cf2-4d6a-9038-c3944fb13703",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Apply logical thinking and maths refresher in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:30:09.201Z"
+    },
+    {
+      "id": "ec0c19da-7b5b-4aed-a005-302270fc4d4f",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:30:07.864Z"
+    },
+    {
+      "id": "d4268bcc-486a-4825-a06b-038244b26c4c",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Reopened lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:28:33.253Z"
+    },
+    {
+      "id": "e05bf490-97e0-462b-bba7-0a324e85f85b",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Reopened lesson Data visualisation and reporting processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:28:31.688Z"
+    },
+    {
+      "id": "3f048555-170f-461a-92dd-81e44c09f078",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Reopened lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:28:30.012Z"
+    },
+    {
+      "id": "029325cb-bcc1-45fe-b166-44c76bf8b3de",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Reopened lesson Apply logical thinking and maths refresher in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:28:28.774Z"
+    },
+    {
+      "id": "784d47ec-e416-45dc-8361-158449eb48fd",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Reopened lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:28:26.439Z"
+    },
+    {
+      "id": "a708349a-1839-4749-9eb6-d428f05ca6ed",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Apply code to use a software toolkit/platform in the field of study or employment in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:26:46.167Z"
+    },
+    {
+      "id": "72cf58d9-e284-4a45-8064-e790324ab0fc",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Data collection and preprocessing processes in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-22T09:24:10.478Z"
+    },
+    {
+      "id": "d2f4e050-9877-4c30-a74c-f8005dafbd1c",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Completed lesson Introduction to data science and data analysis in Data Science Practitioner",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-20T12:26:44.862Z"
+    }
+  ],
+  "messages": [],
+  "announcements": [],
+  "quiz_attempts": []
 }
