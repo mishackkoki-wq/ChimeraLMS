@@ -29,7 +29,7 @@ const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_API_KEY = SUPABASE_SECRET_KEY || SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_STATE_TABLE = process.env.SUPABASE_STATE_TABLE || "lms_state";
-const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_API_KEY);
+let supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_API_KEY);
 const requestContext = new AsyncLocalStorage();
 const STATIC_ROOT = path.resolve(__dirname, "..");
 const PROGRAMMES = JSON.parse(fs.readFileSync(PROGRAMMES_FILE, "utf8"));
@@ -1206,9 +1206,17 @@ async function startServer() {
     if (supabaseConfigured) await initializeSupabaseState();
     else loadData();
   } catch (error) {
-    console.error("Could not initialize LMS persistence:", error.message);
-    process.exitCode = 1;
-    return;
+    // Keep local development usable when Supabase is temporarily unreachable.
+    // Configuration/schema errors still stop startup so they are not masked.
+    if (supabaseConfigured && /^Unable to reach Supabase:/.test(error.message)) {
+      supabaseConfigured = false;
+      loadData();
+      console.warn("Supabase is unreachable; using backend/data.json for this session.");
+    } else {
+      console.error("Could not initialize LMS persistence:", error.message);
+      process.exitCode = 1;
+      return;
+    }
   }
   server.listen(PORT, HOST, () => console.log(`Chimera LMS JavaScript API listening on http://${HOST}:${PORT}`));
 }
