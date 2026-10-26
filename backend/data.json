@@ -101,7 +101,7 @@
       "recoveryQuestion": "What was the name of your first school?",
       "recoveryAnswerHash": "b39e1e4511deb78e938625e761ec67d4749e7fcd104f1b73c0557ca7cbff74f6",
       "selectedCourse": "Data Science Practitioner",
-      "lastLogin": "2026-10-26T11:18:19.216Z",
+      "lastLogin": "2026-10-26T11:39:31.444Z",
       "moduleProgress": {
         "cert-data-science": {
           "Practical Skill Modules": {
@@ -225,7 +225,7 @@
       "instructorId": "u2",
       "progress": 0,
       "status": "in-progress",
-      "students": 0,
+      "students": 2,
       "modules": {
         "Knowledge Modules": [
           "Overview of Artificial Intelligence",
@@ -426,6 +426,11 @@
     {
       "userId": "b11d4e57-60c8-4a69-bdd4-b070f7aa94cb",
       "courseId": "cert-data-science"
+    },
+    {
+      "userId": "0690fe98-4809-4f32-9ae1-f8aed014d9fa",
+      "courseId": "cert-ai-software-developer",
+      "enrolledAt": "2026-10-26T11:39:59.425Z"
     }
   ],
   "submissions": [],
@@ -470,6 +475,14 @@
     }
   ],
   "audit_log": [
+    {
+      "id": "d7627537-ed31-4243-92be-1f006a3ec650",
+      "time": "2026-10-26T11:39:59.425Z",
+      "user": "mishackkoki@gmail.com",
+      "role": "learner",
+      "action": "Enrolled in AI Software Developer",
+      "status": "Success"
+    },
     {
       "id": "97ccfaf7-c67c-47d4-ae6a-b2a11e0a4ff3",
       "time": "2026-10-26T11:20:32.841Z",
@@ -673,6 +686,15 @@
   ],
   "attendance": [],
   "notifications": [
+    {
+      "id": "92699f50-e61c-41ee-ac9b-e708dff379fb",
+      "userId": "u2",
+      "title": "LMS activity",
+      "message": "Enrolled in AI Software Developer",
+      "type": "update",
+      "read": false,
+      "createdAt": "2026-10-26T11:39:59.425Z"
+    },
     {
       "id": "dc25ed64-552b-4af3-ab96-b044c3c11ac7",
       "userId": "u2",
